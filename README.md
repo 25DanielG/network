@@ -1,0 +1,1 @@
+The project uses a custom Go compiler allowing to have braces on a new line
