@@ -23,7 +23,13 @@ import
    "math" // import the math library for max integer
    "math/rand"
    "time" // import time to measure the execution time
-) // import 
+) // import
+
+const MILLISECONDS_IN_SECOND float64 = 1000.0
+const SECONDS_IN_MINUTE float64 = 60.0
+const MINUTES_IN_HOUR float64 = 60.0
+const HOURS_IN_DAY float64 = 24.0
+const DAYS_IN_WEEK float64 = 7.0
 
 type NetworkParameters struct
 {
@@ -35,7 +41,7 @@ type NetworkParameters struct
    numTestCases   int
    
    trainMode  bool
-   weightInit int // 1 is randomize, 2 is zero
+   weightInit int // 1 is randomize, 2 is zero, 3 is manual
    
    weightLowerBound float64
    weightUpperBound float64
@@ -64,6 +70,12 @@ var arrays NetworkArrays
 var truthTable [][]float64
 var expectedOutputs []float64
 
+var trainStart time.Time
+var done bool
+var epochError float64
+var epoch int
+var executionTime float64
+
 /**
  * The main function initiates network parameter configuration, memory allocation for network operations, and executes
  * network training and testing. It follows these steps:
@@ -91,12 +103,7 @@ func main()
       train(truthTable, expectedOutputs)
    }
    
-   var input []float64
-   var index int
-   for index, input = range truthTable
-   {
-      fmt.Printf("Input: %v, Expected: %f, Predicted: %f\n", input, expectedOutputs[index], run(input))
-   }
+   reportResults()
 } // func main()
 
 /**
@@ -123,7 +130,7 @@ func setNetworkParameters()
    parameters = NetworkParameters{
       learningRate:     0.3,
       numInputNodes:    2,
-      numHiddenNodes:   1,
+      numHiddenNodes:   10,
       numOutputNodes:   1,
       numTestCases:     4,
       trainMode:        true,
@@ -156,10 +163,13 @@ func echoNetworkParameters()
 {
    fmt.Println("Network Parameters:")
    fmt.Println("-------------------")
+
    fmt.Printf("λ: %v, Error Threshold: %v, Max Iterations: %d\n",
       parameters.learningRate, parameters.errorThreshold, parameters.maxIterations)
+
    fmt.Printf("Network: %d-%d-%d, NumberTestCases: %d\n",
       parameters.numInputNodes, parameters.numHiddenNodes, parameters.numOutputNodes, parameters.numTestCases)
+
    fmt.Printf("Train Mode: %t\n", parameters.trainMode)
    fmt.Printf("Weight Init: %d -- 1 = random, 2 = zero\n", parameters.weightInit)
    fmt.Printf("Random Range [%v, %v]\n\n", parameters.weightLowerBound, parameters.weightUpperBound)
@@ -271,16 +281,26 @@ func populateNetworkMemory()
       {
          for j = range (*arrays.inputHiddenWeights)[k]
          {
-            (*arrays.inputHiddenWeights)[k][j] = parameters.weightLowerBound +
-                                                 rand.Float64()*(parameters.weightUpperBound - parameters.weightLowerBound)
+            (*arrays.inputHiddenWeights)[k][j] = randomNumber(parameters.weightLowerBound, parameters.weightUpperBound)
          }
-      }
+      } // for k = range *arrays.inputHiddenWeights
+
       for k = range *arrays.hiddenOutputWeights
       {
-         (*arrays.hiddenOutputWeights)[k] = parameters.weightLowerBound +
-                                            rand.Float64()*(parameters.weightUpperBound - parameters.weightLowerBound)
+         (*arrays.hiddenOutputWeights)[k] = randomNumber(parameters.weightLowerBound, parameters.weightUpperBound)
       }
    } // if (parameters.weightInit == 1)
+
+   if (parameters.weightInit == 3)
+   {
+      (*arrays.inputHiddenWeights)[0][0] = 0.8
+      (*arrays.inputHiddenWeights)[0][1] = 0.5
+      (*arrays.inputHiddenWeights)[1][0] = 0.5
+      (*arrays.inputHiddenWeights)[1][1] = 0.5
+
+      (*arrays.hiddenOutputWeights)[0] = -0.5
+      (*arrays.hiddenOutputWeights)[1] = 0.5
+   } // if (parameters.weightInit == 3)
    
    arrays.outputNode = 0.0
    
@@ -298,6 +318,15 @@ func populateNetworkMemory()
    expectedOutputs[2] = 1.0
    expectedOutputs[3] = 0.0
 } // func populateNetworkMemory()
+
+/**
+ * The randomNumber function generates a random floating-point number within a given range. The function uses the `rand` package.
+ * The function is used to initialize the network's weights with random values within a specified range.
+ */
+func randomNumber(lowerBound, upperBound float64) float64
+{
+   return lowerBound + rand.Float64() * (upperBound - lowerBound)
+} // func randomNumber(lowerBound, upperBound float64) float64
 
 /**
  * The sigmoid function calculates the sigmoid activation of a given input value `x`. The sigmoid activation function
@@ -393,11 +422,12 @@ func activationPrime(x float64) float64
  */
 func train(inputs [][]float64, expectedOutputs []float64)
 {
-   var trainStart time.Time = time.Now()
-   var done bool
+   trainStart = time.Now()
+   done = false
    
-   var epochError float64 = math.MaxFloat64
-   var epoch int = 0
+   epochError = math.MaxFloat64
+   epoch = 0
+
    var input, j, k int
    var theta0, omega0, psi0 float64
    
@@ -447,15 +477,15 @@ func train(inputs [][]float64, expectedOutputs []float64)
          for j = range hiddenOutputWeights
          {
             hiddenOutputWeights[j] += hiddenOutputDeltaWeights[j]
-         }
+         } // for j = range hiddenOutputWeights
          
          for k = range inputHiddenWeights
          {
             for j = range inputHiddenWeights[k]
             {
                inputHiddenWeights[k][j] += inputHiddenDeltaWeights[k][j]
-            }
-         }
+            } // for j = range inputHiddenWeights[k]
+         } // for k = range inputHiddenWeights
          
          /* forward propagation again for update the */
          runTrain(&a, &h, &thetas, &inputHiddenWeights, &hiddenOutputWeights, &inputs[input], &theta0)
@@ -466,25 +496,51 @@ func train(inputs [][]float64, expectedOutputs []float64)
       epochError /= float64(parameters.numTestCases)
       epoch++
       done = epochError < parameters.errorThreshold || epoch > parameters.maxIterations
+
       if (epoch % 100000 == 0)
       {
-         fmt.Printf("Finished epoch %d with error %f.7\n", epoch, epochError)
+         fmt.Printf("Finished epoch %d with error %f\n", epoch, epochError)
       }
    } // for (!done)
    
-   var executionTime float64 = float64(time.Since(trainStart) / time.Millisecond)
-   
-   fmt.Printf("Network training stopped after %s and %v iterations: ", formatTime(executionTime), epoch)
-   if (epoch >= parameters.maxIterations)
-   {
-      fmt.Printf("Exceeded max iterations of %d\n", parameters.maxIterations)
-   }
-   
-   if (epochError <= parameters.errorThreshold)
-   {
-      fmt.Printf("Error became less than error threshold %.7f\n", epochError)
-   }
+   executionTime = float64(time.Since(trainStart) / time.Millisecond)
 } // func train(inputs [][]float64, expectedOutputs []float64)
+
+/**
+ * The reportError function prints the current training error and the number of iterations to the console. The function is
+ * used to report the training progress and the reason for stopping the training process. It is called after the training
+ * process is completed.
+ *
+ * Limitations:
+ * - Assumes that the global `epochError` and `epoch` variables are correctly updated during the training process.
+ */
+func reportResults()
+{
+   if (parameters.trainMode)
+   {
+      var formattedTime string = formatTime(executionTime)
+      fmt.Printf("Training stopped after %s and %v iterations with average error: %.9f.\n", formattedTime, epoch, epochError)
+      fmt.Printf("Reason for stopping: ")
+
+      if (epoch >= parameters.maxIterations)
+      {
+         fmt.Printf("Exceeded max iterations of %d\n", parameters.maxIterations)
+      }
+      
+      if (epochError <= parameters.errorThreshold)
+      {
+         fmt.Printf("Error became less than error threshold %.7f\n", epochError)
+      }
+   } // if (parameters.trainMode)
+
+   var input []float64
+   var index int
+
+   for index, input = range truthTable
+   {
+      fmt.Printf("Input: %v, Expected: %f, Predicted: %f\n", input, expectedOutputs[index], run(input))
+   }
+} // func reportResults()
 
 /**
  * The run function performs forward propagation through the network for a given input array `a`, computing the network's output.
@@ -572,7 +628,7 @@ func runTrain(a *[]float64, h *[]float64, thetas *[]float64, inputHiddenWeights 
          (*thetas)[j] += (*a)[k] * (*inputHiddenWeights)[k][j]
       }
       (*h)[j] = activationFunction((*thetas)[j])
-   }
+   } // for j = 0; j < parameters.numHiddenNodes; j++
    *theta0 = 0.0
    
    for j = range *h
@@ -604,36 +660,48 @@ func runTrain(a *[]float64, h *[]float64, thetas *[]float64, inputHiddenWeights 
 func formatTime(milliseconds float64) string
 {
    var seconds, minutes, hours, days, weeks float64
-   
-   if (milliseconds < 1000.0)
+   var formatted string
+   var override bool = false
+
+   if (milliseconds < MILLISECONDS_IN_SECOND)
    {
-      return fmt.Sprintf("%f milliseconds", milliseconds)
+      formatted = fmt.Sprintf("%f milliseconds", milliseconds)
+      override = true
    }
    
-   seconds = milliseconds / 1000.0
-   if (seconds < 60.0)
+   seconds = milliseconds / MILLISECONDS_IN_SECOND
+   if (seconds < SECONDS_IN_MINUTE && !override)
    {
-      return fmt.Sprintf("%f seconds", seconds)
+      formatted = fmt.Sprintf("%f seconds", seconds)
+      override = true
    }
    
-   minutes = seconds / 60.0
-   if (minutes < 60.0)
+   minutes = seconds / SECONDS_IN_MINUTE
+   if (minutes < MINUTES_IN_HOUR && !override)
    {
-      return fmt.Sprintf("%f minutes", minutes)
+      formatted = fmt.Sprintf("%f minutes", minutes)
+      override = true
    }
    
-   hours = minutes / 60.0
-   if (hours < 24.0)
+   hours = minutes / MINUTES_IN_HOUR
+   if (hours < HOURS_IN_DAY && !override)
    {
-      return fmt.Sprintf("%f hours", hours)
+      formatted = fmt.Sprintf("%f hours", hours)
+      override = true
    }
    
-   days = hours / 24.0
-   if (days < 7.0)
+   days = hours / HOURS_IN_DAY
+   if (days < DAYS_IN_WEEK && !override)
    {
-      return fmt.Sprintf("%f days", days)
+      formatted = fmt.Sprintf("%f days", days)
+      override = true
    }
-   
-   weeks = days / 7.0
-   return fmt.Sprintf("%f weeks", weeks)
+
+   if (days >= DAYS_IN_WEEK && !override)
+   {
+      weeks = days / DAYS_IN_WEEK
+      formatted = fmt.Sprintf("%f weeks", weeks)
+   }
+
+   return formatted
 } // func formatTime(milliseconds float64) string
