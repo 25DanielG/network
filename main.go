@@ -130,7 +130,7 @@ func setNetworkParameters()
    parameters = NetworkParameters{
       learningRate:     0.3,
       numInputNodes:    2,
-      numHiddenNodes:   10,
+      numHiddenNodes:   1,
       numOutputNodes:   1,
       numTestCases:     4,
       trainMode:        true,
@@ -450,7 +450,7 @@ func train(inputs [][]float64, expectedOutputs []float64)
          /* forward propagation */
          runTrain(&a, &h, &thetas, &inputHiddenWeights, &hiddenOutputWeights, &inputs[input], &theta0)
          
-         /* back propagation for output layer */
+         /* calculate delta weights for output layer */
          omega0 = expectedOutputs[input] - arrays.outputNode
          epochError += 0.5 * omega0 * omega0
          psi0 = omega0 * activationPrime(theta0)
@@ -461,7 +461,7 @@ func train(inputs [][]float64, expectedOutputs []float64)
             hiddenOutputDeltaWeights[j] = -parameters.learningRate * dEdW[0][j]
          }
          
-         /* back propagation for hidden layer */
+         /* calculate delta weights for hidden layer */
          for k = range inputHiddenWeights
          {
             for j = range inputHiddenWeights[k]
