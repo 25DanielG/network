@@ -135,7 +135,7 @@ func setNetworkParameters()
    parameters = NetworkParameters{
       learningRate:     0.3,
       numInputNodes:    2,
-      numHiddenNodes:   20,
+      numHiddenNodes:   5,
       numOutputNodes:   3,
       numTestCases:     4,
       trainMode:        true,
