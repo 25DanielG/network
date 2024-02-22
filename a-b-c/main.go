@@ -1,5 +1,5 @@
 /**
- * This module creates types and functions for the purpose of defining an A-B-1 neural network. The module includes defining
+ * This module creates types and functions for the purpose of defining an A-B-C neural network. The module includes defining
  * structures that encase network parameters (learning rate, number of hidden nodes, number of input nodes, number of output nodes
  * which is coded to 1, training mode, weight initialization, random weight generation lower and upper bounds, error threshold to
  * stop training, and max iterations for training). Furthermore, the NetworkArrays struct defines the arrays and weights following
@@ -9,7 +9,7 @@
  * the network arrays by initializing the weights using 'populateNetworkMemory()', trains the network using 'train()', and
  * runs the network irrespective of the train mode using 'run()' for every row of the truth table.
  * This module includes functions that train and run the network for a given truth table, as well as "setup" functions that
- * create, allocate, and populate the A-B-1 neural network. The training algorithm utilizes gradient descent to minimize the
+ * create, allocate, and populate the A-B-C neural network. The training algorithm utilizes gradient descent to minimize the
  * error function.
  * @author Daniel Gergov
  * @creation 1/27/24
@@ -54,25 +54,30 @@ type NetworkArrays struct
 {
    a                        *[]float64
    h                        *[]float64
+   F                        *[]float64
    inputHiddenWeights       *[][]float64
-   hiddenOutputWeights      *[]float64
-   outputNode               float64
-   thetas                   *[]float64
-   omegas                   *[]float64
-   psis                     *[]float64
-   dEdW                     *[][]float64
+   hiddenOutputWeights      *[][]float64
+   thetaJ                   *[]float64
+   omegaJ                   *[]float64
+   psiJ                     *[]float64
+   dEdWKJ                   *[][]float64
+   thetaI                   *[]float64
+   omegaI                   *[]float64
+   psiI                     *[]float64
+   dEdWJI                   *[][]float64
    inputHiddenDeltaWeights  *[][]float64
-   hiddenOutputDeltaWeights *[]float64
+   hiddenOutputDeltaWeights *[][]float64
 } // type NetworkArrays struct
 
 var parameters NetworkParameters
 var arrays NetworkArrays
 var truthTable [][]float64
-var expectedOutputs []float64
+var expectedOutputs [][]float64
 
 var trainStart time.Time
 var done bool
 var epochError float64
+var inputError float64
 var epoch int
 var executionTime float64
 
@@ -130,12 +135,12 @@ func setNetworkParameters()
    parameters = NetworkParameters{
       learningRate:     0.3,
       numInputNodes:    2,
-      numHiddenNodes:   1,
-      numOutputNodes:   1,
+      numHiddenNodes:   20,
+      numOutputNodes:   3,
       numTestCases:     4,
-      trainMode:        false,
+      trainMode:        true,
       weightInit:       1,
-      weightLowerBound: -1.5,
+      weightLowerBound: 0.1,
       weightUpperBound: 1.5,
       errorThreshold:   2e-4,
       maxIterations:    100000,
@@ -192,43 +197,62 @@ func echoNetworkParameters()
  * Limitations:
  * - Assumes that the global `parameters` structure is correctly initialized before this function is called.
  */
-func allocateNetworkMemory() (NetworkArrays, [][]float64, []float64)
+func allocateNetworkMemory() (NetworkArrays, [][]float64, [][]float64)
 {
-   var j, input int
+   var k, j, input, output int
    
    var a []float64 = make([]float64, parameters.numInputNodes)
    var inputHiddenWeights [][]float64 = make([][]float64, parameters.numInputNodes)
-   for j = range inputHiddenWeights
+   for k = range inputHiddenWeights
    {
-      inputHiddenWeights[j] = make([]float64, parameters.numHiddenNodes)
+      inputHiddenWeights[k] = make([]float64, parameters.numHiddenNodes)
    }
 
    var h []float64 = make([]float64, parameters.numHiddenNodes)
-   var hiddenOutputWeights []float64 = make([]float64, parameters.numHiddenNodes)
-   var outputNode float64 = 0.0
+
+   var hiddenOutputWeights [][]float64 = make([][]float64, parameters.numHiddenNodes)
+   for j = range hiddenOutputWeights
+   {
+      hiddenOutputWeights[j] = make([]float64, parameters.numOutputNodes)
+   }
+
+   var F []float64 = make([]float64, parameters.numOutputNodes)
    
-   var thetas, omegas, psis, hiddenOutputDeltaWeights []float64
-   var dEdW, inputHiddenDeltaWeights [][]float64
+   var thetaJ, omegaJ, psiJ, thetaI, omegaI, psiI []float64
+   var dEdWKJ, dEdWJI, inputHiddenDeltaWeights, hiddenOutputDeltaWeights [][]float64
    
-   /* prevent the allocation of thetas, omegas, psis, dEdW, and deltaWeights if not training */
+   /* prevent the allocation of thetas, omegas, psis, dEdW's, and deltaWeights if not training */
    if (parameters.trainMode)
    {
-      thetas = make([]float64, parameters.numHiddenNodes)
-      omegas = make([]float64, parameters.numHiddenNodes)
-      psis = make([]float64, parameters.numHiddenNodes)
+      thetaJ = make([]float64, parameters.numHiddenNodes)
+      omegaJ = make([]float64, parameters.numHiddenNodes)
+      psiJ = make([]float64, parameters.numHiddenNodes)
+      thetaI = make([]float64, parameters.numHiddenNodes)
+      omegaI = make([]float64, parameters.numHiddenNodes)
+      psiI = make([]float64, parameters.numHiddenNodes)
       
-      dEdW = make([][]float64, parameters.numInputNodes)
-      for j = range dEdW
+      dEdWKJ = make([][]float64, parameters.numInputNodes)
+      for k = range dEdWKJ
       {
-         dEdW[j] = make([]float64, parameters.numHiddenNodes)
+         dEdWKJ[k] = make([]float64, parameters.numHiddenNodes)
+      }
+
+      dEdWJI = make([][]float64, parameters.numHiddenNodes)
+      for j = range dEdWJI
+      {
+         dEdWJI[j] = make([]float64, parameters.numOutputNodes)
       }
       
-      hiddenOutputDeltaWeights = make([]float64, parameters.numHiddenNodes)
-      
       inputHiddenDeltaWeights = make([][]float64, parameters.numInputNodes)
-      for j = range inputHiddenDeltaWeights
+      for k = range inputHiddenDeltaWeights
       {
-         inputHiddenDeltaWeights[j] = make([]float64, parameters.numHiddenNodes)
+         inputHiddenDeltaWeights[k] = make([]float64, parameters.numHiddenNodes)
+      }
+
+      hiddenOutputDeltaWeights = make([][]float64, parameters.numHiddenNodes)
+      for j = range hiddenOutputDeltaWeights
+      {
+         hiddenOutputDeltaWeights[j] = make([]float64, parameters.numOutputNodes)
       }
    } // if (parameters.trainMode)
    
@@ -238,7 +262,11 @@ func allocateNetworkMemory() (NetworkArrays, [][]float64, []float64)
       inputTruthTable[input] = make([]float64, parameters.numInputNodes)
    }
    
-   var outputTruthTable []float64 = make([]float64, parameters.numTestCases)
+   var outputTruthTable [][]float64 = make([][]float64, parameters.numTestCases)
+   for output = range outputTruthTable
+   {
+      outputTruthTable[output] = make([]float64, parameters.numOutputNodes)
+   }
    
    return NetworkArrays
    {
@@ -246,11 +274,15 @@ func allocateNetworkMemory() (NetworkArrays, [][]float64, []float64)
       h:                              &h,
       inputHiddenWeights:             &inputHiddenWeights,
       hiddenOutputWeights:            &hiddenOutputWeights,
-      outputNode:                     outputNode,
-      thetas:                         &thetas,
-      omegas:                         &omegas,
-      psis:                           &psis,
-      dEdW:                           &dEdW,
+      F:                              &F,
+      thetaJ:                         &thetaJ,
+      omegaJ:                         &omegaJ,
+      psiJ:                           &psiJ,
+      dEdWKJ:                         &dEdWKJ,
+      thetaI:                         &thetaI,
+      omegaI:                         &omegaI,
+      psiI:                           &psiI,
+      dEdWJI:                         &dEdWJI,
       inputHiddenDeltaWeights:        &inputHiddenDeltaWeights,
       hiddenOutputDeltaWeights:       &hiddenOutputDeltaWeights,
    }, inputTruthTable, outputTruthTable
@@ -271,8 +303,7 @@ func allocateNetworkMemory() (NetworkArrays, [][]float64, []float64)
  */
 func populateNetworkMemory()
 {
-   var k int
-   var j int
+   var k, j, i int
    
    if (parameters.weightInit == 1)
    {
@@ -285,24 +316,26 @@ func populateNetworkMemory()
          }
       } // for k = range *arrays.inputHiddenWeights
 
-      for k = range *arrays.hiddenOutputWeights
+      for j = range *arrays.hiddenOutputWeights
       {
-         (*arrays.hiddenOutputWeights)[k] = randomNumber(parameters.weightLowerBound, parameters.weightUpperBound)
-      }
+         for i = range (*arrays.hiddenOutputWeights)[j]
+         {
+            (*arrays.hiddenOutputWeights)[j][i] = randomNumber(parameters.weightLowerBound, parameters.weightUpperBound)
+         }
+      } // for j = range *arrays.hiddenOutputWeights
    } // if (parameters.weightInit == 1)
 
+   /* manual weight init for 2-2-1 network */
    if (parameters.weightInit == 3)
    {
       (*arrays.inputHiddenWeights)[0][0] = 0.8
       (*arrays.inputHiddenWeights)[0][1] = 0.5
-      (*arrays.inputHiddenWeights)[1][0] = 100.5
+      (*arrays.inputHiddenWeights)[1][0] = 0.5
       (*arrays.inputHiddenWeights)[1][1] = 0.5
 
-      (*arrays.hiddenOutputWeights)[0] = -0.5
-      (*arrays.hiddenOutputWeights)[1] = 0.5
+      (*arrays.hiddenOutputWeights)[0][0] = -0.5
+      (*arrays.hiddenOutputWeights)[1][0] = 0.5
    } // if (parameters.weightInit == 3)
-   
-   arrays.outputNode = 0.0
    
    truthTable[0][0] = 0.0
    truthTable[0][1] = 0.0
@@ -313,10 +346,21 @@ func populateNetworkMemory()
    truthTable[3][0] = 1.0
    truthTable[3][1] = 1.0
    
-   expectedOutputs[0] = 0.0
-   expectedOutputs[1] = 1.0
-   expectedOutputs[2] = 1.0
-   expectedOutputs[3] = 0.0
+   expectedOutputs[0][0] = 0.0
+   expectedOutputs[0][1] = 0.0
+   expectedOutputs[0][2] = 0.0
+
+   expectedOutputs[1][0] = 0.0
+   expectedOutputs[1][1] = 1.0
+   expectedOutputs[1][2] = 1.0
+
+   expectedOutputs[2][0] = 0.0
+   expectedOutputs[2][1] = 1.0
+   expectedOutputs[2][2] = 1.0
+
+   expectedOutputs[3][0] = 1.0
+   expectedOutputs[3][1] = 1.0
+   expectedOutputs[3][2] = 0.0
 } // func populateNetworkMemory()
 
 /**
@@ -420,7 +464,7 @@ func activationPrime(x float64) float64
  * - Assumes that there exists global access to network arrays and parameters for weight updates.
  * - Depends on the functions (`runTrain`, `sigmoidDerivative`) to train the network.
  */
-func train(inputs [][]float64, expectedOutputs []float64)
+func train(inputs [][]float64, expectedOutputs [][]float64)
 {
    trainStart = time.Now()
    done = false
@@ -428,71 +472,101 @@ func train(inputs [][]float64, expectedOutputs []float64)
    epochError = math.MaxFloat64
    epoch = 0
 
-   var input, j, k int
-   var theta0, omega0, psi0 float64
+   var input, j, k, i int
    
    var a []float64 = *arrays.a
    var h []float64 = *arrays.h
-   var thetas []float64 = *arrays.thetas
-   var omegas []float64 = *arrays.omegas
-   var psis []float64 = *arrays.psis
+   var F []float64 = *arrays.F
+
+   var thetaJ []float64 = *arrays.thetaJ
+   var omegaJ []float64 = *arrays.omegaJ
+   var psiJ []float64 = *arrays.psiJ
+   var dEdWKJ [][]float64 = *arrays.dEdWKJ
+
+   var thetaI []float64 = *arrays.thetaI
+   var omegaI []float64 = *arrays.omegaI
+   var psiI []float64 = *arrays.psiI
+   var dEdWJI [][]float64 = *arrays.dEdWJI
+
    var inputHiddenWeights [][]float64 = *arrays.inputHiddenWeights
-   var hiddenOutputWeights []float64 = *arrays.hiddenOutputWeights
-   var dEdW [][]float64 = *arrays.dEdW
+   var hiddenOutputWeights [][]float64 = *arrays.hiddenOutputWeights
    var inputHiddenDeltaWeights [][]float64 = *arrays.inputHiddenDeltaWeights
-   var hiddenOutputDeltaWeights []float64 = *arrays.hiddenOutputDeltaWeights
+   var hiddenOutputDeltaWeights [][]float64 = *arrays.hiddenOutputDeltaWeights
    
    for (!done)
    {
       epochError = 0.0
       for input = range inputs
       {
+         inputError = 0.0
+
          /* forward propagation */
-         runTrain(&a, &h, &thetas, &inputHiddenWeights, &hiddenOutputWeights, &inputs[input], &theta0)
+         runTrain(&a, &h, &F, &thetaJ, &thetaI, &inputHiddenWeights, &hiddenOutputWeights, &inputs[input])
          
          /* calculate delta weights for output layer */
-         omega0 = expectedOutputs[input] - arrays.outputNode
-         epochError += 0.5 * omega0 * omega0
-         psi0 = omega0 * activationPrime(theta0)
-         
-         for j = range hiddenOutputWeights
+         for i = 0; i < parameters.numOutputNodes; i++
          {
-            dEdW[0][j] = -h[j] * psi0
-            hiddenOutputDeltaWeights[j] = -parameters.learningRate * dEdW[0][j]
-         }
+            omegaI[i] = expectedOutputs[input][i] - F[i]
+            inputError += omegaI[i] * omegaI[i]
+            psiI[i] = omegaI[i] * activationPrime(thetaI[i])
+         } // for i = 0; i < parameters.numOutputNodes; i++
+         
+         epochError /= 2.0
+
+         for j = 0; j < parameters.numHiddenNodes; j++
+         {
+            omegaJ[j] = 0.0
+            for i = 0; i < parameters.numOutputNodes; i++
+            {
+               dEdWJI[j][i] = -h[j] * psiI[i]
+               hiddenOutputDeltaWeights[j][i] = -parameters.learningRate * dEdWJI[j][i]
+               omegaJ[j] += psiI[i] * hiddenOutputWeights[j][i]
+            } // for i = 0; i < parameters.numOutputNodes; i++
+         } // for j = 0; j < parameters.numHiddenNodes; j++
          
          /* calculate delta weights for hidden layer */
-         for k = range inputHiddenWeights
+         for k = 0; k < parameters.numInputNodes; k++
          {
-            for j = range inputHiddenWeights[k]
+            for j = 0; j < parameters.numHiddenNodes; j++
             {
-               omegas[j] = psi0 * hiddenOutputWeights[j]
-               psis[j] = omegas[j] * activationPrime(thetas[j])
-               dEdW[k][j] = -a[k] * psis[j]
-               inputHiddenDeltaWeights[k][j] = -parameters.learningRate * dEdW[k][j]
-            } // for j = range inputHiddenWeights[k]
-         } // for k = range inputHiddenWeights
-         
+               psiJ[j] = omegaJ[j] * activationPrime(thetaJ[j])
+               dEdWKJ[k][j] = -a[k] * psiJ[j]
+               inputHiddenDeltaWeights[k][j] = -parameters.learningRate * dEdWKJ[k][j]
+            } // for j = 0; j < parameters.numHiddenNodes; j++
+         } // for k = 0; k < parameters.numInputNodes; k++
+
          /* update the weights of the network */
-         for j = range hiddenOutputWeights
+         for j = 0; j < parameters.numHiddenNodes; j++
          {
-            hiddenOutputWeights[j] += hiddenOutputDeltaWeights[j]
-         } // for j = range hiddenOutputWeights
+            for i = 0; i < parameters.numOutputNodes; i++
+            {
+               hiddenOutputWeights[j][i] += hiddenOutputDeltaWeights[j][i]
+            } // for i = 0; i < parameters.numOutputNodes; i++
+         } // for j = 0; j < parameters.numHiddenNodes; j++
          
-         for k = range inputHiddenWeights
+         for k = 0; k < parameters.numInputNodes; k++
          {
-            for j = range inputHiddenWeights[k]
+            for j = 0; j < parameters.numHiddenNodes; j++
             {
                inputHiddenWeights[k][j] += inputHiddenDeltaWeights[k][j]
-            } // for j = range inputHiddenWeights[k]
-         } // for k = range inputHiddenWeights
+            } // for j = 0; j < parameters.numHiddenNodes; j++
+         } // for k = 0; k < parameters.numInputNodes; k++
          
-         /* forward propagation again for update the */
-         runTrain(&a, &h, &thetas, &inputHiddenWeights, &hiddenOutputWeights, &inputs[input], &theta0)
+         /* forward propagation again for updating the error */
+         runTrain(&a, &h, &F, &thetaJ, &thetaI, &inputHiddenWeights, &hiddenOutputWeights, &inputs[input])
          
-         omega0 = expectedOutputs[input] - arrays.outputNode
-         epochError += 0.5 * omega0 * omega0
+         inputError = 0.0
+
+         for i = 0; i < parameters.numOutputNodes; i++
+         {
+            omegaI[i] = expectedOutputs[input][i] - F[i]
+            inputError += omegaI[i] * omegaI[i]
+         } // for i = 0; i < parameters.numOutputNodes; i++
+
+         inputError /= 2.0
+         epochError += inputError
       } // for input = range inputs
+
       epochError /= float64(parameters.numTestCases)
       epoch++
       done = epochError < parameters.errorThreshold || epoch > parameters.maxIterations
@@ -559,33 +633,37 @@ func reportResults()
  * - Assumes that the network's weights (`inputHiddenWeights` and `hiddenOutputWeights`) have been properly initialized.
  * - Assumes that the input array `a` matches the size expected by the network.
  */
-func run(a []float64) float64
+func run(a []float64) []float64
 {
-   var j, k int
+   var j, k, i int
    
    var h []float64 = *arrays.h
+   var F []float64 = *arrays.F
    var inputHiddenWeights [][]float64 = *arrays.inputHiddenWeights
-   var hiddenOutputWeights []float64 = *arrays.hiddenOutputWeights
+   var hiddenOutputWeights [][]float64 = *arrays.hiddenOutputWeights
    
    // forward propagation
    for j = 0; j < parameters.numHiddenNodes; j++
    {
       var sum float64 = 0.0
-      for k = range a
+      for k = 0; k < parameters.numInputNodes; k++
       {
          sum += a[k] * inputHiddenWeights[k][j]
       }
       h[j] = activationFunction(sum)
    } // for j = 0; j < parameters.numHiddenNodes; j++
    
-   var sum float64 = 0.0
-   for j = range *arrays.h
+   for i = 0; i < parameters.numOutputNodes; i++
    {
-      sum += h[j] * hiddenOutputWeights[j]
-   }
-   arrays.outputNode = activationFunction(sum)
+      var sum float64 = 0.0
+      for j = 0; j < parameters.numHiddenNodes; j++
+      {
+         sum += h[j] * hiddenOutputWeights[j][i]
+      }
+      F[i] = activationFunction(sum)
+   } // for i = 0; i < parameters.numOutputNodes; i++
    
-   return arrays.outputNode
+   return *arrays.F
 } // func run(a []float64) float64
 
 /**
@@ -610,32 +688,37 @@ func run(a []float64) float64
  * Limitations and Conditions:
  * - Assumes that the network's weights (`inputHiddenWeights` and `hiddenOutputWeights`) have been properly initialized.
  */
-func runTrain(a *[]float64, h *[]float64, thetas *[]float64, inputHiddenWeights *[][]float64,
-              hiddenOutputWeights *[]float64, input *[]float64, theta0 *float64)
+func runTrain(a *[]float64, h *[]float64, F *[]float64, thetaJ *[]float64, thetaI *[]float64,
+              inputHiddenWeights *[][]float64, hiddenOutputWeights *[][]float64, input *[]float64)
 {
-   var j, k int
+   var j, k, i int
    
-   for j = range *a
+   for k = 0; k < parameters.numInputNodes; k++
    {
-      (*a)[j] = (*input)[j]
+      (*a)[k] = (*input)[k]
    }
    
    for j = 0; j < parameters.numHiddenNodes; j++
    {
-      (*thetas)[j] = 0.0
-      for k = range *a
+      (*thetaJ)[j] = 0.0
+      for k = 0; k < parameters.numInputNodes; k++
       {
-         (*thetas)[j] += (*a)[k] * (*inputHiddenWeights)[k][j]
-      }
-      (*h)[j] = activationFunction((*thetas)[j])
+         (*thetaJ)[j] += (*a)[k] * (*inputHiddenWeights)[k][j]
+      } // for k = 0; k < parameters.numInputNodes; k++
+      
+      (*h)[j] = activationFunction((*thetaJ)[j])
    } // for j = 0; j < parameters.numHiddenNodes; j++
-   *theta0 = 0.0
    
-   for j = range *h
+   for i = 0; i < parameters.numOutputNodes; i++
    {
-      *theta0 += (*h)[j] * (*hiddenOutputWeights)[j]
-   }
-   arrays.outputNode = activationFunction(*theta0)
+      (*thetaI)[i] = 0.0
+      for j = 0; j < parameters.numHiddenNodes; j++
+      {
+         (*thetaI)[i] += (*h)[j] * (*hiddenOutputWeights)[j][i]
+      } // for j = 0; j < parameters.numHiddenNodes; j++
+
+      (*F)[i] = activationFunction((*thetaI)[i])
+   } // for i = 0; i < parameters.numOutputNodes; i++
 } // func runTrain(a *[]float64...
 
 /**
