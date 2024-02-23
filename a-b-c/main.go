@@ -12,17 +12,21 @@
  * create, allocate, and populate the A-B-C neural network. The training algorithm utilizes gradient descent to minimize the
  * error function.
  * @author Daniel Gergov
- * @creation 1/27/24
+ * @creation 2/21/24
  */
 
 package main
 
 import
 (
-   "fmt"  // import the io interface
-   "math" // import the math library for max integer
+   "fmt"     // import the io interface
+   "math"    // import the math library for max integer
    "math/rand"
-   "time" // import time to measure the execution time
+   "time"    // import time to measure the execution time
+   "os"      // allows interaction with os
+   "errors"  // allows for error handling
+   "strconv" // convert int to string
+   "strings" // string manipulation
 ) // import
 
 const MILLISECONDS_IN_SECOND float64 = 1000.0
@@ -41,7 +45,9 @@ type NetworkParameters struct
    numTestCases   int
    
    trainMode  bool
-   weightInit int // 1 is randomize, 2 is zero, 3 is manual
+   weightInit int // 1 is randomize, 2 is zero, 3 is manual, 4 is load from file
+   writeWeights bool
+   fileName string
    
    weightLowerBound float64
    weightUpperBound float64
@@ -109,6 +115,11 @@ func main()
    }
    
    reportResults()
+
+   if (parameters.writeWeights)
+   {
+      saveWeights()
+   }
 } // func main()
 
 /**
@@ -138,8 +149,10 @@ func setNetworkParameters()
       numHiddenNodes:   5,
       numOutputNodes:   3,
       numTestCases:     4,
-      trainMode:        true,
-      weightInit:       1,
+      trainMode:        false,
+      weightInit:       4,
+      writeWeights:     false,
+      fileName:         "weights.txt",
       weightLowerBound: 0.1,
       weightUpperBound: 1.5,
       errorThreshold:   2e-4,
@@ -154,7 +167,7 @@ func setNetworkParameters()
  * method, and the range for random weight initialization.
  *
  * Displayed Parameters:
- * - Learning rate (λ), error threshold, and maximum iterations for training control.
+ * - Learning rate (λ), error threshold, and maximum iterations for training control only if train mode is true.
  * - Network architecture detailed by the count of input, hidden, and output nodes.
  * - The total number of test cases used for training or validation.
  * - Training mode indicator (true for training mode).
@@ -169,14 +182,17 @@ func echoNetworkParameters()
    fmt.Println("Network Parameters:")
    fmt.Println("-------------------")
 
-   fmt.Printf("λ: %v, Error Threshold: %v, Max Iterations: %d\n",
-      parameters.learningRate, parameters.errorThreshold, parameters.maxIterations)
+   if (parameters.trainMode)
+   {
+      fmt.Printf("λ: %v, Error Threshold: %v, Max Iterations: %d\n",
+                 parameters.learningRate, parameters.errorThreshold, parameters.maxIterations)
+   }
 
    fmt.Printf("Network: %d-%d-%d, NumberTestCases: %d\n",
       parameters.numInputNodes, parameters.numHiddenNodes, parameters.numOutputNodes, parameters.numTestCases)
 
    fmt.Printf("Train Mode: %t\n", parameters.trainMode)
-   fmt.Printf("Weight Init: %d -- 1 = random, 2 = zero, 3 = manual\n", parameters.weightInit)
+   fmt.Printf("Weight Init: %d -- 1 = random, 2 = zero, 3 = manual, 4 = load from file\n", parameters.weightInit)
    fmt.Printf("Random Range [%v, %v]\n\n", parameters.weightLowerBound, parameters.weightUpperBound)
 } // func echoNetworkParameters()
 
@@ -227,9 +243,9 @@ func allocateNetworkMemory() (NetworkArrays, [][]float64, [][]float64)
       thetaJ = make([]float64, parameters.numHiddenNodes)
       omegaJ = make([]float64, parameters.numHiddenNodes)
       psiJ = make([]float64, parameters.numHiddenNodes)
-      thetaI = make([]float64, parameters.numHiddenNodes)
-      omegaI = make([]float64, parameters.numHiddenNodes)
-      psiI = make([]float64, parameters.numHiddenNodes)
+      thetaI = make([]float64, parameters.numOutputNodes)
+      omegaI = make([]float64, parameters.numOutputNodes)
+      psiI = make([]float64, parameters.numOutputNodes)
       
       dEdWKJ = make([][]float64, parameters.numInputNodes)
       for k = range dEdWKJ
@@ -336,6 +352,11 @@ func populateNetworkMemory()
       (*arrays.hiddenOutputWeights)[0][0] = -0.5
       (*arrays.hiddenOutputWeights)[1][0] = 0.5
    } // if (parameters.weightInit == 3)
+
+   if (parameters.weightInit == 4)
+   {
+      loadWeights()
+   } // if (parameters.weightInit == 4)
    
    truthTable[0][0] = 0.0
    truthTable[0][1] = 0.0
@@ -511,8 +532,8 @@ func train(inputs [][]float64, expectedOutputs [][]float64)
             psiI[i] = omegaI[i] * activationPrime(thetaI[i])
          } // for i = 0; i < parameters.numOutputNodes; i++
          
-         epochError /= 2.0
-
+         inputError /= 2.0
+         
          for j = 0; j < parameters.numHiddenNodes; j++
          {
             omegaJ[j] = 0.0
@@ -543,7 +564,7 @@ func train(inputs [][]float64, expectedOutputs [][]float64)
                hiddenOutputWeights[j][i] += hiddenOutputDeltaWeights[j][i]
             } // for i = 0; i < parameters.numOutputNodes; i++
          } // for j = 0; j < parameters.numHiddenNodes; j++
-         
+
          for k = 0; k < parameters.numInputNodes; k++
          {
             for j = 0; j < parameters.numHiddenNodes; j++
@@ -788,3 +809,134 @@ func formatTime(milliseconds float64) string
 
    return formatted
 } // func formatTime(milliseconds float64) string
+
+func checkError(err error)
+{
+   if (err != nil)
+   {
+      fmt.Println("Received an error:", err)
+      panic(err)
+   }
+}
+
+func saveWeights()
+{
+   var j, k, i int
+   var file *os.File
+   var err error
+   var fileExists bool = false
+
+   /* check if the file exists */
+   _, err = os.Stat(parameters.fileName)
+   if (err == nil)
+   {
+      fileExists = true
+   }
+
+   if (!fileExists && errors.Is(err, os.ErrNotExist))
+   {
+      file, err = os.Create(parameters.fileName)
+      checkError(err)
+   }
+
+   /* open file */
+   file, err = os.OpenFile(parameters.fileName, os.O_WRONLY, 0644)
+   checkError(err)
+
+   defer file.Close()
+
+   /* write network architecture to file */
+   _, err = file.WriteString(fmt.Sprintf("%d-%d-%d\n", parameters.numInputNodes, parameters.numHiddenNodes,
+                             parameters.numOutputNodes))
+   checkError(err)
+
+   _, err = file.WriteString("\n") // write new line to file
+   checkError(err)
+
+   /* write input-hidden weights to file */
+   for k = 0; k < parameters.numInputNodes; k++
+   {
+      for j = 0; j < parameters.numHiddenNodes; j++
+      {
+         _, err = file.WriteString(fmt.Sprintf("%f\n", (*arrays.inputHiddenWeights)[k][j]))
+         checkError(err)
+      } // for j = 0; j < parameters.numHiddenNodes; j++
+   } // for k = 0; k < parameters.numInputNodes; k++
+
+   _, err = file.WriteString("\n") // write new line to file
+   checkError(err)
+
+   /* write hidden-output weights to file */
+   for j = 0; j < parameters.numHiddenNodes; j++
+   {
+      for i = 0; i < parameters.numOutputNodes; i++
+      {
+         _, err = file.WriteString(fmt.Sprintf("%f\n", (*arrays.hiddenOutputWeights)[j][i]))
+         checkError(err)
+      } // for i = 0; i < parameters.numOutputNodes; i++
+   } // for j = 0; j < parameters.numHiddenNodes; j++
+}
+
+func loadWeights()
+{
+   var j, k, i int
+   var file *os.File
+   var err error
+   var fileExists bool = false
+
+   /* check if the file exists */
+   _, err = os.Stat(parameters.fileName)
+   if (!fileExists && errors.Is(err, os.ErrNotExist))
+   {
+      fmt.Println("File for loading weights does not exist!")
+      panic(err)
+   }
+
+   file, err = os.Open(parameters.fileName)
+   checkError(err)
+
+   defer file.Close()
+
+   /* read network architecture from file */
+   var architecture string
+   _, err = fmt.Fscan(file, &architecture)
+   checkError(err)
+
+   var numberInputNodes string = strconv.Itoa(parameters.numInputNodes)
+   var numberHiddenNodes string = strconv.Itoa(parameters.numHiddenNodes)
+   var numberOutputNodes string = strconv.Itoa(parameters.numOutputNodes)
+
+   var layerActivationNumbers []string = strings.Split(architecture, "-")
+   if (numberInputNodes != layerActivationNumbers[0] || numberHiddenNodes != layerActivationNumbers[1] ||
+       numberOutputNodes != layerActivationNumbers[2])
+   {
+      fmt.Println("Network architecture does not match the architecture in the weights file!")
+      panic(err)
+   }
+
+   /* read new line */
+   _, err = fmt.Fscan(file, nil)
+
+   /* read input-hidden weights from file */
+   for k = 0; k < parameters.numInputNodes; k++
+   {
+      for j = 0; j < parameters.numHiddenNodes; j++
+      {
+         _, err = fmt.Fscan(file, &(*arrays.inputHiddenWeights)[k][j])
+         checkError(err)
+      } // for j = 0; j < parameters.numHiddenNodes; j++
+   } // for k = 0; k < parameters.numInputNodes; k++
+
+   /* read new line */
+   _, err = fmt.Fscan(file, nil)
+
+   /* read hidden-output weights from file */
+   for j = 0; j < parameters.numHiddenNodes; j++
+   {
+      for i = 0; i < parameters.numOutputNodes; i++
+      {
+         _, err = fmt.Fscan(file, &(*arrays.hiddenOutputWeights)[j][i])
+         checkError(err)
+      } // for i = 0; i < parameters.numOutputNodes; i++
+   } // for j = 0; j < parameters.numHiddenNodes; j++
+}
