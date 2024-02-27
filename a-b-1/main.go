@@ -127,7 +127,8 @@ func main()
  */
 func setNetworkParameters()
 {
-   parameters = NetworkParameters{
+   parameters = NetworkParameters
+   {
       learningRate:     0.3,
       numInputNodes:    2,
       numHiddenNodes:   1,
