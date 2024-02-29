@@ -39,6 +39,22 @@ const DAYS_IN_WEEK float64 = 7.0
 const CONFIG_FILE string = "config.txt"
 const CONFIG_FROM_FILE bool = true
 
+const LEARNING_RATE = "learningRate"
+const NUM_HIDDEN_NODES = "numHiddenNodes"
+const NUM_INPUT_NODES = "numInputNodes"
+const NUM_OUTPUT_NODES = "numOutputNodes"
+const NUM_TEST_CASES = "numTestCases"
+const TRAIN_MODE = "trainMode"
+const WEIGHT_INIT = "weightInit"
+const WRITE_WEIGHTS = "writeWeights"
+const FILE_NAME = "fileName"
+const WEIGHT_LOWER_BOUND = "weightLowerBound"
+const WEIGHT_UPPER_BOUND = "weightUpperBound"
+const ERROR_THRESHOLD = "errorThreshold"
+const MAX_ITERATIONS = "maxIterations"
+
+const CONFIG_PREFIX = ":"
+
 type NetworkParameters struct
 {
    learningRate float64
@@ -94,7 +110,8 @@ var executionTime float64
 /**
  * The main function initiates network parameter configuration, memory allocation for network operations, and executes
  * network training and testing. It follows these steps:
- * 1. Sets and displays network parameters.
+ * 1. Sets and displays network parameters. Calls `setNetworkParameters` or `loadNetworkParameters` based on the
+ *    `CONFIG_FROM_FILE` constant.
  * 2. Allocates and populates network memory for arrays, truth table, and expected outputs.
  * 3. Trains the network with provided truth table and expected outputs if the trainMode network configuration is 'true'
  * 4. Reports results by iterating over the truth table, comparing and outputting expected outputs
@@ -163,7 +180,7 @@ func loadNetworkParameters()
    {
       configLine = scanner.Text()
 
-      if (strings.HasPrefix(configLine, "@"))
+      if (strings.HasPrefix(configLine, CONFIG_PREFIX))
       {
          parts := strings.Fields(configLine)
          if (len(parts) == 2)
@@ -173,62 +190,62 @@ func loadNetworkParameters()
 
             switch variableName
             {
-               case "@learningRate":
+               case CONFIG_PREFIX + LEARNING_RATE:
                   parameters.learningRate, _ = strconv.ParseFloat(variableValue, 64)
                   break
 
-               case "@numHiddenNodes":
+               case CONFIG_PREFIX + NUM_HIDDEN_NODES:
                   parameters.numHiddenNodes, _ = strconv.Atoi(variableValue)
                   break
 
-               case "@numInputNodes":
+               case CONFIG_PREFIX + NUM_INPUT_NODES:
                   parameters.numInputNodes, _ = strconv.Atoi(variableValue)
                   break
 
-               case "@numOutputNodes":
+               case CONFIG_PREFIX + NUM_OUTPUT_NODES:
                   parameters.numOutputNodes, _ = strconv.Atoi(variableValue)
                   break
 
-               case "@numTestCases":
+               case CONFIG_PREFIX + NUM_TEST_CASES:
                   parameters.numTestCases, _ = strconv.Atoi(variableValue)
                   break
 
-               case "@trainMode":
+               case CONFIG_PREFIX + TRAIN_MODE:
                   parameters.trainMode, _ = strconv.ParseBool(variableValue)
                   break
 
-               case "@weightInit":
+               case CONFIG_PREFIX + WEIGHT_INIT:
                   parameters.weightInit, _ = strconv.Atoi(variableValue)
                   break
 
-               case "@writeWeights":
+               case CONFIG_PREFIX + WRITE_WEIGHTS:
                   parameters.writeWeights, _ = strconv.ParseBool(variableValue)
                   break
 
-               case "@fileName":
+               case CONFIG_PREFIX + FILE_NAME:
                   parameters.fileName = variableValue
                   break
 
-               case "@weightLowerBound":
+               case CONFIG_PREFIX + WEIGHT_LOWER_BOUND:
                   parameters.weightLowerBound, _ = strconv.ParseFloat(variableValue, 64)
                   break
 
-               case "@weightUpperBound":
+               case CONFIG_PREFIX + WEIGHT_UPPER_BOUND:
                   parameters.weightUpperBound, _ = strconv.ParseFloat(variableValue, 64)
                   break
 
-               case "@errorThreshold":
+               case CONFIG_PREFIX + ERROR_THRESHOLD:
                   parameters.errorThreshold, _ = strconv.ParseFloat(variableValue, 64)
                   break
 
-               case "@maxIterations":
+               case CONFIG_PREFIX + MAX_ITERATIONS:
                   parameters.maxIterations, _ = strconv.Atoi(variableValue)
                   break
             } // switch variableName
          } // if (len(parts) == 2)
       } // if (strings.HasPrefix(configLine, "@"))
    } // for (scanner.Scan())
-}
+} // func loadNetworkParameters()
 
 /**
  * The setNetworkParameters function initializes the network's configuration by defining its parameters within a
@@ -966,13 +983,13 @@ func saveWeights()
    var err error
    var fileExists bool = false
 
-   err = os.Truncate(parameters.fileName, 0);
-   checkError(err)
-
    _, err = os.Stat(parameters.fileName)
    if (err == nil)
    {
       fileExists = true
+
+      err = os.Truncate(parameters.fileName, 0); // clear the file's content
+      checkError(err)
    }
 
    if (!fileExists && errors.Is(err, os.ErrNotExist))
