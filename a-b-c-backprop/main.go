@@ -669,9 +669,7 @@ func train(inputs [][]float64, expectedOutputs [][]float64)
          
          for i = 0; i < parameters.numOutputNodes; i++
          {
-            omegaI[i] = expectedOutputs[input][i] - F[i]
             inputError += omegaI[i] * omegaI[i]
-            psiI[i] = omegaI[i] * activationPrime(thetaI[i])
          } // for i = 0; i < parameters.numOutputNodes; i++
          
          inputError /= 2.0
@@ -701,7 +699,6 @@ func train(inputs [][]float64, expectedOutputs [][]float64)
 
          for i = 0; i < parameters.numOutputNodes; i++
          {
-            omegaI[i] = expectedOutputs[input][i] - F[i]
             inputError += omegaI[i] * omegaI[i]
          } // for i = 0; i < parameters.numOutputNodes; i++
 
@@ -816,6 +813,7 @@ func run(a []float64) []float64
  *    2. For each hidden neuron, computes the weighted sum of its inputs and applies the sigmoid function to
  *       obtain the neuron's output.
  *    3. Calculates the weighted sum of the hidden layer outputs and applies the sigmoid function to determine the network outputs.
+ *    4. Computes the error between the small omega i array and the psi i array used for network training.
  *
  * Parameters:
  * - `a`: Reference to the input layer vector.
@@ -823,6 +821,8 @@ func run(a []float64) []float64
  * - `F`: Reference to the final output vector.
  * - `thetaJ`: Reference to the variable storing the weighted sum of the hidden layer outputs before applying sigmoid.
  * - `thetaI`: Reference to the variable storing the weighted sum of the output layer outputs before applying sigmoid.
+ * - `omegaI`: Reference to the vector storing the error between expected and predicted outputs.
+ * - `psiI`: Reference to the vector storing the error gradient for the output layer.
  * - `inputHiddenWeights`: Reference to the matrix of weights from the input layer to the hidden layer.
  * - `hiddenOutputWeights`: Reference to the vector of weights from the hidden layer to the output neuron.
  * - `input`: The input vector for the current training example.
@@ -830,7 +830,7 @@ func run(a []float64) []float64
  * Limitations and Conditions:
  * - Assumes that the network's weights (`inputHiddenWeights` and `hiddenOutputWeights`) have been properly initialized.
  */
-func runTrain(a *[]float64, h *[]float64, F *[]float64, thetaJ *[]float64, thetaI *[]float64,
+func runTrain(a *[]float64, h *[]float64, F *[]float64, thetaJ *[]float64, thetaI *[]float64, omegaI *[]float64, psiI *[]float64,
               inputHiddenWeights *[][]float64, hiddenOutputWeights *[][]float64, input *[]float64)
 {
    var j, k, i int
@@ -860,6 +860,8 @@ func runTrain(a *[]float64, h *[]float64, F *[]float64, thetaJ *[]float64, theta
       } // for j = 0; j < parameters.numHiddenNodes; j++
 
       (*F)[i] = activationFunction((*thetaI)[i])
+      omegaI[i] = expectedOutputs[input][i] - F[i]
+      psiI[i] = omegaI[i] * activationPrime(thetaI[i])
    } // for i = 0; i < parameters.numOutputNodes; i++
 } // func runTrain(a *[]float64...
 
