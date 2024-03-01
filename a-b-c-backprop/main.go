@@ -10,7 +10,7 @@
  * runs the network using 'runTrain()' and 'run()' for every row of the truth table.
  * This module includes functions that train and run the network for a given truth table, as well as "setup" functions that
  * create, allocate, and populate the A-B-C neural network. The training algorithm utilizes gradient descent to minimize the
- * error function.
+ * error function. The network also uses backpropagation to update the weights efficiently.
  * @author Daniel Gergov
  * @creation 2/21/24
  */
@@ -187,11 +187,13 @@ func loadNetworkParameters()
    var configLine string
 
    _, err = os.Stat(CONFIG_FILE)
-   if err == nil {
+   if (err == nil)
+   {
       fileExists = true
    }
 
-   if !fileExists {
+   if (!fileExists)
+   {
       panic("Configuration file does not exist!")
    }
 
@@ -271,7 +273,7 @@ func loadNetworkParameters()
                   break
             } // switch variableName
          } // if (len(parts) == 2)
-      } // if (strings.HasPrefix(configLine, "@"))
+      } // if (strings.HasPrefix(configLine, CONFIG_PREFIX))
    } // for (scanner.Scan())
 } // func loadNetworkParameters()
 
@@ -836,7 +838,7 @@ func runTrain(a *[]float64, h *[]float64, F *[]float64, thetaJ *[]float64, theta
    for k = 0; k < parameters.numInputNodes; k++
    {
       (*a)[k] = (*input)[k]
-   }
+   } // for k = 0; k < parameters.numInputNodes; k++
    
    for j = 0; j < parameters.numHiddenNodes; j++
    {
@@ -945,7 +947,7 @@ func checkError(err error)
    {
       fmt.Println("Received an error:", err)
       panic(err)
-   }
+   } // if (err != nil)
 }
 
 /**
