@@ -86,11 +86,9 @@ type NetworkArrays struct
    thetaJ                   *[]float64
    omegaJ                   *[]float64
    psiJ                     *[]float64
-   dEdWKJ                   *[][]float64
    thetaI                   *[]float64
    omegaI                   *[]float64
    psiI                     *[]float64
-   dEdWJI                   *[][]float64
    inputHiddenDeltaWeights  *[][]float64
    hiddenOutputDeltaWeights *[][]float64
 } // type NetworkArrays struct
@@ -151,6 +149,36 @@ func main()
    }
 } // func main()
 
+/**
+ * The loadNetworkParameters function reads the network configuration parameters from a file and sets the global `parameters`
+ * structure accordingly. The function reads the configuration file line by line, parsing each line to extract the parameter
+ * name and value. It then sets the corresponding parameter in the `parameters` structure.
+ *
+ * The config file is assumed to have all necessary parameters set with a prefix + parameter name and a space-separated value.
+ * Therefore, the function looks for the prefix + parameter name at the beginning of each line and sets the corresponding
+ * parameter in the `parameters` structure.
+ *
+ * Process:
+ * 1. The function checks if the configuration file exists. If not, the function panics.
+ * 2. The function opens the configuration file in read-only mode and creates a scanner to read the file line by line.
+ * 3. The function parses each line to extract the parameter name and value, then sets the corresponding parameter in
+ *    the `parameters`
+ *
+ * Syntax:
+ * - os.Stat(filename string) checks if the file exists.
+ * - os.OpenFile(filename string, flag int, perm os.FileMode) opens a file for writing.
+ * - error.Is(err error, target error) checks if the error is equal to the target error.
+ * - defer file.Close() defers the file's closure until the function returns.
+ * - bufio.NewScanner(file *os.File) creates a new scanner to read the file line by line.
+ * - scanner.Scan() reads the next line from the file.
+ * - scanner.Text() returns the current line from the scanner.
+ * - strings.HasPrefix(s, prefix string) checks if the string starts with the given prefix.
+ * - strings.Fields(s string) splits the string into fields separated by whitespace.
+ *
+ * Limitations:
+ * - Assumes that the configuration file exists and is correctly formatted.
+ * - Assumes that the configuration file contains all necessary parameters and that the values are correctly formatted.
+ */
 func loadNetworkParameters()
 {
    var file *os.File
@@ -325,7 +353,7 @@ func echoNetworkParameters()
 /**
  * The allocateNetworkMemory function is responsible for initializing and allocating memory for various arrays and matrices used
  * by the network, including those for input to hidden layer weights, hidden to output layer weights, and other structures
- * for training such as gradients, delta weights, omegas, thetas, and psis. The function also allocates the truth table for
+ * for training such as delta weights, omegas, thetas, and psis. The function also allocates the truth table for
  * inputs and expected outputs.
 
  * Returns:
@@ -333,7 +361,7 @@ func echoNetworkParameters()
  * - A truth table for network inputs as a slice of float64 slices.
  * - An output truth table as a slice of float64.
 
- * If the trainMode parameter is true, structures used exclusively for training (thetas, omegas, psis, dEdW, deltaWeights)
+ * If the trainMode parameter is true, structures used exclusively for training (thetas, omegas, psis, deltaWeights)
  * are allocated. This condition helps optimize memory usage by only allocating necessary arrays.
 
  * Limitations:
@@ -361,7 +389,7 @@ func allocateNetworkMemory() (NetworkArrays, [][]float64, [][]float64)
    var F []float64 = make([]float64, parameters.numOutputNodes)
    
    var thetaJ, omegaJ, psiJ, thetaI, omegaI, psiI []float64
-   var dEdWKJ, dEdWJI, inputHiddenDeltaWeights, hiddenOutputDeltaWeights [][]float64
+   var inputHiddenDeltaWeights, hiddenOutputDeltaWeights [][]float64
    
    if (parameters.trainMode)
    {
@@ -371,18 +399,6 @@ func allocateNetworkMemory() (NetworkArrays, [][]float64, [][]float64)
       thetaI = make([]float64, parameters.numOutputNodes)
       omegaI = make([]float64, parameters.numOutputNodes)
       psiI = make([]float64, parameters.numOutputNodes)
-      
-      dEdWKJ = make([][]float64, parameters.numInputNodes)
-      for k = range dEdWKJ
-      {
-         dEdWKJ[k] = make([]float64, parameters.numHiddenNodes)
-      }
-
-      dEdWJI = make([][]float64, parameters.numHiddenNodes)
-      for j = range dEdWJI
-      {
-         dEdWJI[j] = make([]float64, parameters.numOutputNodes)
-      }
       
       inputHiddenDeltaWeights = make([][]float64, parameters.numInputNodes)
       for k = range inputHiddenDeltaWeights
@@ -419,11 +435,9 @@ func allocateNetworkMemory() (NetworkArrays, [][]float64, [][]float64)
       thetaJ:                         &thetaJ,
       omegaJ:                         &omegaJ,
       psiJ:                           &psiJ,
-      dEdWKJ:                         &dEdWKJ,
       thetaI:                         &thetaI,
       omegaI:                         &omegaI,
       psiI:                           &psiI,
-      dEdWJI:                         &dEdWJI,
       inputHiddenDeltaWeights:        &inputHiddenDeltaWeights,
       hiddenOutputDeltaWeights:       &hiddenOutputDeltaWeights,
    }, inputTruthTable, outputTruthTable
@@ -632,12 +646,10 @@ func train(inputs [][]float64, expectedOutputs [][]float64)
    var thetaJ []float64 = *arrays.thetaJ
    var omegaJ []float64 = *arrays.omegaJ
    var psiJ []float64 = *arrays.psiJ
-   var dEdWKJ [][]float64 = *arrays.dEdWKJ
 
    var thetaI []float64 = *arrays.thetaI
    var omegaI []float64 = *arrays.omegaI
    var psiI []float64 = *arrays.psiI
-   var dEdWJI [][]float64 = *arrays.dEdWJI
 
    var inputHiddenWeights [][]float64 = *arrays.inputHiddenWeights
    var hiddenOutputWeights [][]float64 = *arrays.hiddenOutputWeights
@@ -667,37 +679,19 @@ func train(inputs [][]float64, expectedOutputs [][]float64)
             omegaJ[j] = 0.0
             for i = 0; i < parameters.numOutputNodes; i++
             {
-               dEdWJI[j][i] = -h[j] * psiI[i]
-               hiddenOutputDeltaWeights[j][i] = -parameters.learningRate * dEdWJI[j][i]
                omegaJ[j] += psiI[i] * hiddenOutputWeights[j][i]
-            } // for i = 0; i < parameters.numOutputNodes; i++
-         } // for j = 0; j < parameters.numHiddenNodes; j++
-         
-         for k = 0; k < parameters.numInputNodes; k++
-         {
-            for j = 0; j < parameters.numHiddenNodes; j++
-            {
-               psiJ[j] = omegaJ[j] * activationPrime(thetaJ[j])
-               dEdWKJ[k][j] = -a[k] * psiJ[j]
-               inputHiddenDeltaWeights[k][j] = -parameters.learningRate * dEdWKJ[k][j]
-            } // for j = 0; j < parameters.numHiddenNodes; j++
-         } // for k = 0; k < parameters.numInputNodes; k++
-
-         for j = 0; j < parameters.numHiddenNodes; j++
-         {
-            for i = 0; i < parameters.numOutputNodes; i++
-            {
+               hiddenOutputDeltaWeights[j][i] = parameters.learningRate * h[j] * psiI[i]
                hiddenOutputWeights[j][i] += hiddenOutputDeltaWeights[j][i]
             } // for i = 0; i < parameters.numOutputNodes; i++
-         } // for j = 0; j < parameters.numHiddenNodes; j++
 
-         for k = 0; k < parameters.numInputNodes; k++
-         {
-            for j = 0; j < parameters.numHiddenNodes; j++
+            psiJ[j] = omegaJ[j] * activationPrime(thetaJ[j])
+            
+            for k = 0; k < parameters.numInputNodes; k++
             {
+               inputHiddenDeltaWeights[k][j] = parameters.learningRate * a[k] * psiJ[j]
                inputHiddenWeights[k][j] += inputHiddenDeltaWeights[k][j]
-            } // for j = 0; j < parameters.numHiddenNodes; j++
-         } // for k = 0; k < parameters.numInputNodes; k++
+            } // for k = 0; k < parameters.numInputNodes; k++
+         } // for j = 0; j < parameters.numHiddenNodes; j++
          
          runTrain(&a, &h, &F, &thetaJ, &thetaI, &inputHiddenWeights, &hiddenOutputWeights, &inputs[input])
          

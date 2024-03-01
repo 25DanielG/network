@@ -5,7 +5,7 @@
 | LAYER PARAMETERS |
 
 :numInputNodes 2
-:numHiddenNodes 5
+:numHiddenNodes 1
 :numOutputNodes 3
 
 | TRAIN PARAMETERS |
