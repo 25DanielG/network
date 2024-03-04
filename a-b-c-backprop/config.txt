@@ -23,7 +23,11 @@
 :weightUpperBound 1.5
 :errorThreshold 2e-4
 :maxIterations 100000
+:weightSaveEvery 50000
+:keepAliveEvery 100000
 
 |  RUN PARAMETERS  |
 
 :numTestCases 4
+:externalTestData true
+:testDataFile data.txt

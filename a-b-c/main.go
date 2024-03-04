@@ -317,8 +317,8 @@ func allocateNetworkMemory() (NetworkArrays, [][]float64, [][]float64)
  * 2. If the weight initialization mode is set to manual (weightInit == 3), it initializes the input-hidden and hidden-output
  *    weight matrices with predefined values for a 2-2-1 network.
  * 3. If the weight initialization mode is set to load from file (weightInit == 4), it loads the weights from a file.
- * 3. Populates the truth table with predefined inputs.
- * 4. Sets the expected outputs corresponding to the truth table inputs to a binary operation either XOR, OR, or AND.
+ * 4. Populates the truth table with predefined inputs.
+ * 5. Sets the expected outputs corresponding to the truth table inputs to a binary operation either XOR, OR, or AND.
  *
  * Limitations:
  * - Assumes `arrays`, `truthTable`, and `expectedOutputs` are globally accessible and correctly linked to the network's structure.

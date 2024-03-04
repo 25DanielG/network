@@ -45,6 +45,8 @@ const NUM_HIDDEN_NODES = "numHiddenNodes"
 const NUM_INPUT_NODES = "numInputNodes"
 const NUM_OUTPUT_NODES = "numOutputNodes"
 const NUM_TEST_CASES = "numTestCases"
+const EXTERNAL_TEST_DATA = "externalTestData"
+const TEST_DATA_FILE = "testDataFile"
 const TRAIN_MODE = "trainMode"
 const WEIGHT_INIT = "weightInit"
 const WRITE_WEIGHTS = "writeWeights"
@@ -53,6 +55,8 @@ const WEIGHT_LOWER_BOUND = "weightLowerBound"
 const WEIGHT_UPPER_BOUND = "weightUpperBound"
 const ERROR_THRESHOLD = "errorThreshold"
 const MAX_ITERATIONS = "maxIterations"
+const WEIGHT_SAVE_EVERY = "weightSaveEvery"
+const KEEP_ALIVE_EVERY = "keepAliveEvery"
 
 const CONFIG_PREFIX = ":"
 
@@ -63,7 +67,10 @@ type NetworkParameters struct
    numHiddenNodes int
    numInputNodes  int
    numOutputNodes int
-   numTestCases   int
+
+   numTestCases     int
+   externalTestData bool
+   testDataFile     string
    
    trainMode  bool
    weightInit int // 1 is randomize, 2 is zero, 3 is manual, 4 is load from file
@@ -73,8 +80,10 @@ type NetworkParameters struct
    weightLowerBound float64
    weightUpperBound float64
    
-   errorThreshold float64
-   maxIterations  int
+   errorThreshold  float64
+   maxIterations   int
+   weightSaveEvery int
+   keepAliveEvery  int
 } // type NetworkParameters struct
 
 type NetworkArrays struct
@@ -241,6 +250,14 @@ func loadNetworkParameters()
                   parameters.numTestCases, _ = strconv.Atoi(variableValue)
                   break
 
+               case CONFIG_PREFIX + EXTERNAL_TEST_DATA:
+                  parameters.externalTestData, _ = strconv.ParseBool(variableValue)
+                  break
+
+               case CONFIG_PREFIX + TEST_DATA_FILE:
+                  parameters.testDataFile = variableValue
+                  break
+
                case CONFIG_PREFIX + TRAIN_MODE:
                   parameters.trainMode, _ = strconv.ParseBool(variableValue)
                   break
@@ -272,6 +289,14 @@ func loadNetworkParameters()
                case CONFIG_PREFIX + MAX_ITERATIONS:
                   parameters.maxIterations, _ = strconv.Atoi(variableValue)
                   break
+
+               case CONFIG_PREFIX + WEIGHT_SAVE_EVERY:
+                  parameters.weightSaveEvery, _ = strconv.Atoi(variableValue)
+                  break
+
+               case CONFIG_PREFIX + KEEP_ALIVE_EVERY:
+                  parameters.keepAliveEvery, _ = strconv.Atoi(variableValue)
+                  break
             } // switch variableName
          } // if (len(parts) == 2)
       } // if (strings.HasPrefix(configLine, CONFIG_PREFIX))
@@ -289,6 +314,8 @@ func loadNetworkParameters()
  * - numHiddenLayers, numInputNodes, numShallowHiddenNodes, numDeepHiddenNodes,
  * -     numOutputNodes: Specify the architecture of the network in terms of neuron counts.
  * - numTestCases: The number of test cases to be used in training/validation.
+ * - externalTestData: Boolean indicating if the test data is external to the program.
+ * - testDataFile: The name of the file containing the test data.
  * - trainMode: Boolean indicating if the network is in training mode.
  * - weightInit: Method or value for weight initialization; 1 being random, 2 being zeroes, 3 being manual, 4 being load from file.
  * - weightLowerBound, weightUpperBound: Define the range of values for initializing the network weights to random values.
@@ -296,6 +323,8 @@ func loadNetworkParameters()
  * - maxIterations: Limits the number of training iterations.
  * - writeWeights: Boolean indicating if the weights should be written to a file.
  * - fileName: The name of the file to write the weights to.
+ * - weightSaveEvery: The number of iterations to save the weights after.
+ * - keepAliveEvery: The number of iterations to output a keep-alive message.
  *
  * Limitations:
  * - The function statically sets network parameters without accepting external input.
@@ -304,21 +333,23 @@ func setNetworkParameters()
 {
    parameters = NetworkParameters
    {
-      learningRate:          0.3,
-      numHiddenLayers:       2,
-      numInputNodes:         2,
-      numShallowHiddenNodes: 5,
-      numDeepHiddenNodes:    5,
-      numOutputNodes:        3,
-      numTestCases:          4,
-      trainMode:             true,
-      weightInit:            1,
-      writeWeights:          true,
-      fileName:              "weights.txt",
-      weightLowerBound:      0.1,
-      weightUpperBound:      1.5,
-      errorThreshold:        2e-4,
-      maxIterations:         100000,
+      learningRate:     0.3,
+      numInputNodes:    2,
+      numHiddenNodes:   5,
+      numOutputNodes:   3,
+      numTestCases:     4,
+      externalTestData: true,
+      testDataFile:     "data.txt",
+      trainMode:        true,
+      weightInit:       1,
+      writeWeights:     true,
+      fileName:         "weights.txt",
+      weightLowerBound: 0.1,
+      weightUpperBound: 1.5,
+      errorThreshold:   2e-4,
+      maxIterations:    100000,
+      weightSaveEvery:  10000,
+      keepAliveEvery:   100000,
    }
 } // func setNetworkParameters()
 
@@ -333,9 +364,11 @@ func setNetworkParameters()
  * - Network architecture detailed by the count of input, hidden, and output nodes.
  * - The total number of test cases used for training or validation.
  * - Training mode indicator (true for training mode).
+ * - Test data source indicator (true for external test data).
  * - Weight initialization method, where "1" denotes random initialization and "2" denotes initialization to zero, 3 denotes
  * -    manual initialization, and 4 denotes loading from a file.
  * - Range for random weight initialization, specifying lower and upper bounds.
+ * - Keep alive and save weights every N iterations.
  *
  * Limitations:
  * - This function depends on the global `parameters` structure being set by setNetworkParameters() and not by passed arguments.
@@ -356,6 +389,8 @@ func echoNetworkParameters()
 
    fmt.Printf("Train Mode: %t\n", parameters.trainMode)
    fmt.Printf("Weight Init: %d -- 1 = random, 2 = zero, 3 = manual, 4 = load from file\n", parameters.weightInit)
+   fmt.Printf("Test Data: %t -- true = external, 2 = internal\n", parameters.externalTestData)
+   fmt.Printf("Keep Alive Every: %d, Save Weights Every: %d\n", parameters.keepAliveEvery, parameters.weightSaveEvery)
    fmt.Printf("Random Range [%v, %v]\n\n", parameters.weightLowerBound, parameters.weightUpperBound)
 } // func echoNetworkParameters()
 
@@ -438,6 +473,73 @@ func allocateNetworkMemory() (NetworkArrays, [][]float64, [][]float64)
 } // func allocateNetworkMemory() NetworkArrays
 
 /**
+ * The loadTestData function reads the test data from a file and populates the truth table and expected outputs for the network.
+ * The function reads the test data file line by line, parsing each line to extract the input and expected output values.
+ * It then sets the corresponding values in the `truthTable` and `expectedOutputs` arrays.
+ *
+ * Syntax:
+ * - os.Stat(filename string) checks if the file exists.
+ * - os.OpenFile(filename string, flag int, perm os.FileMode) opens a file for writing.
+ * - error.Is(err error, target error) checks if the error is equal to the target error.
+ * - defer file.Close() defers the file's closure until the function returns.
+ * - bufio.NewScanner(file *os.File) creates a new scanner to read the file line by line.
+ * - scanner.Scan() reads the next line from the file.
+ * - scanner.Text() returns the current line from the scanner.
+ * - strings.Fields(s string) splits the string into fields separated by whitespace.
+ * - strconv.ParseFloat(s string, bitSize int) converts a string to a float64.
+ *
+ * Limitations:
+ * - Assumes that the test data file exists and is correctly formatted.
+ * - Assumes the `truthTable` and `expectedOutput` arrays are properly allocated.
+ */
+func loadTestData()
+{
+   var file *os.File
+   var err error
+   var fileExists bool = false
+   var testLine string
+   var test, k, i int
+
+   _, err = os.Stat(parameters.testDataFile)
+   if (err == nil)
+   {
+      fileExists = true
+   }
+
+   if (!fileExists)
+   {
+      panic("Test data file does not exist!")
+   }
+
+   file, err = os.OpenFile(parameters.testDataFile, os.O_RDONLY, 0644) // open file in read-only mode
+   checkError(err)
+
+   defer file.Close()
+
+   var scanner *bufio.Scanner = bufio.NewScanner(file)
+
+   test = 0
+
+   for (scanner.Scan() && test < parameters.numTestCases)
+   {
+      testLine = scanner.Text()
+      parts := strings.Fields(testLine)
+      if (len(parts) == parameters.numInputNodes + parameters.numOutputNodes + 1)
+      {
+         for k = 0; k < parameters.numInputNodes; k++
+         {
+            truthTable[test][k], _ = strconv.ParseFloat(parts[k], 64)
+         }
+         for i = 0; i < parameters.numOutputNodes; i++
+         {
+            expectedOutputs[test][i], _ = strconv.ParseFloat(parts[i + parameters.numInputNodes + 1], 64)
+         }
+      } // if (len(parts) == parameters.numInputNodes + parameters.numOutputNodes + 1)
+      test++
+   } // for (scanner.Scan() && test < parameters.numTestCases)
+} // func loadTestData()
+
+/**
  * The populateNetworkMemory function initializes the network's weight matrices and sets up the truth table and expected outputs
  * for training or evaluation. It follows these steps:
  *
@@ -446,8 +548,8 @@ func allocateNetworkMemory() (NetworkArrays, [][]float64, [][]float64)
  * 2. If the weight initialization mode is set to manual (weightInit == 3), it initializes the input-hidden and hidden-output
  *    weight matrices with predefined values for a 2-2-1 network.
  * 3. If the weight initialization mode is set to load from file (weightInit == 4), it loads the weights from a file.
- * 3. Populates the truth table with predefined inputs.
- * 4. Sets the expected outputs corresponding to the truth table inputs to a binary operation either XOR, OR, or AND.
+ * 4. Populates the truth table with predefined inputs.
+ * 5. Sets the expected outputs corresponding to the truth table inputs to a binary operation either XOR, OR, or AND.
  *
  * Limitations:
  * - Assumes `arrays`, `truthTable`, and `expectedOutputs` are globally accessible and correctly linked to the network's structure.
@@ -492,34 +594,41 @@ func populateNetworkMemory()
       loadWeights()
    } // if (parameters.weightInit == 4)
    
-   truthTable[0][0] = 0.0
-   truthTable[0][1] = 0.0
-   // truthTable[0][2] = 0.0
-   truthTable[1][0] = 0.0
-   truthTable[1][1] = 1.0
-   // truthTable[1][2] = 0.0
-   truthTable[2][0] = 1.0
-   truthTable[2][1] = 0.0
-   // truthTable[2][2] = 0.0
-   truthTable[3][0] = 1.0
-   truthTable[3][1] = 1.0
-   // truthTable[3][2] = 0.0
-   
-   expectedOutputs[0][0] = 0.0
-   expectedOutputs[0][1] = 0.0
-   expectedOutputs[0][2] = 0.0
+   if (parameters.externalTestData)
+   {
+      loadTestData()
+   }
+   else
+   {
+      truthTable[0][0] = 0.0
+      truthTable[0][1] = 0.0
+      // truthTable[0][2] = 0.0
+      truthTable[1][0] = 0.0
+      truthTable[1][1] = 1.0
+      // truthTable[1][2] = 0.0
+      truthTable[2][0] = 1.0
+      truthTable[2][1] = 0.0
+      // truthTable[2][2] = 0.0
+      truthTable[3][0] = 1.0
+      truthTable[3][1] = 1.0
+      // truthTable[3][2] = 0.0
+      
+      expectedOutputs[0][0] = 0.0
+      expectedOutputs[0][1] = 0.0
+      expectedOutputs[0][2] = 0.0
 
-   expectedOutputs[1][0] = 0.0
-   expectedOutputs[1][1] = 1.0
-   expectedOutputs[1][2] = 1.0
+      expectedOutputs[1][0] = 0.0
+      expectedOutputs[1][1] = 1.0
+      expectedOutputs[1][2] = 1.0
 
-   expectedOutputs[2][0] = 0.0
-   expectedOutputs[2][1] = 1.0
-   expectedOutputs[2][2] = 1.0
+      expectedOutputs[2][0] = 0.0
+      expectedOutputs[2][1] = 1.0
+      expectedOutputs[2][2] = 1.0
 
-   expectedOutputs[3][0] = 1.0
-   expectedOutputs[3][1] = 1.0
-   expectedOutputs[3][2] = 0.0
+      expectedOutputs[3][0] = 1.0
+      expectedOutputs[3][1] = 1.0
+      expectedOutputs[3][2] = 0.0
+   }
 } // func populateNetworkMemory()
 
 /**
@@ -703,10 +812,16 @@ func train(inputs [][]float64, expectedOutputs [][]float64)
       epoch++
       done = epochError < parameters.errorThreshold || epoch > parameters.maxIterations
 
-      if (epoch % 100000 == 0)
+      if (epoch % parameters.weightSaveEvery == 0)
+      {
+         saveWeights()
+         fmt.Println("Weights saved...")
+      } // if (epoch % parameters.weightSaveEvery == 0)
+
+      if (epoch % parameters.keepAliveEvery == 0)
       {
          fmt.Printf("Finished epoch %d with error %f\n", epoch, epochError)
-      } // if (epoch % 100000 == 0)
+      } // if (epoch % parameters.keepAliveEvery == 0)
    } // for (!done)
    
    executionTime = float64(time.Since(trainStart) / time.Millisecond)
