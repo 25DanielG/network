@@ -1,10 +1,11 @@
 /**
  * This module creates types and functions for the purpose of defining an A-B-C neural network. The module includes defining
  * structures that encase network parameters (learning rate, number of hidden nodes, number of input nodes, number of output nodes
- * which is coded to 1, training mode, weight initialization, random weight generation lower and upper bounds, error threshold to
- * stop training, and max iterations for training). Furthermore, the NetworkArrays struct defines the arrays and weights following
+ * which is coded to C, number of test cases, training mode, weight initialization, random weight generation lower and
+ * upper bounds, error threshold to stop training, writing weights to a file, the weights filename, and max iterations
+ * for training). Furthermore, the NetworkArrays struct defines the arrays and weights following
  * the allocation of these structures.
- * The main function sets the network parameters using 'setNetworkParameters()', echos the parameters through console using
+ * The main function sets the network parameters using 'loadNetworkParameters()', echos the parameters through console using
  * 'echoNetworkParameters()', allocates the memory needed for the network arrays using 'allocateNetworkMemory()', populates
  * the network arrays by initializing the weights using 'populateNetworkMemory()', trains the network using 'train()', and
  * runs the network using 'runTrain()' and 'run()' for every row of the truth table.
@@ -122,12 +123,14 @@ var executionTime float64
  */
 func main()
 {
-   actions := map[bool]func()
+   if (CONFIG_FROM_FILE)
    {
-      true:  loadNetworkParameters,
-      false: setNetworkParameters,
+      loadNetworkParameters()
    }
-   actions[CONFIG_FROM_FILE]()
+   else
+   {
+      setNetworkParameters()
+   }
 
    echoNetworkParameters()
    
@@ -283,13 +286,16 @@ func loadNetworkParameters()
  *
  * Parameters Defined:
  * - learningRate: Learning rate (lambda) for the gradient descent rate.
- * - numInputNodes, numHiddenNodes, numOutputNodes: Specify the architecture of the network in terms of neuron counts.
+ * - numHiddenLayers, numInputNodes, numShallowHiddenNodes, numDeepHiddenNodes,
+ * -     numOutputNodes: Specify the architecture of the network in terms of neuron counts.
  * - numTestCases: The number of test cases to be used in training/validation.
  * - trainMode: Boolean indicating if the network is in training mode.
- * - weightInit: Method or value for weight initialization; 1 being random, 2 being zeroes.
+ * - weightInit: Method or value for weight initialization; 1 being random, 2 being zeroes, 3 being manual, 4 being load from file.
  * - weightLowerBound, weightUpperBound: Define the range of values for initializing the network weights to random values.
  * - errorThreshold: The error level at which training is considered sufficiently complete.
  * - maxIterations: Limits the number of training iterations.
+ * - writeWeights: Boolean indicating if the weights should be written to a file.
+ * - fileName: The name of the file to write the weights to.
  *
  * Limitations:
  * - The function statically sets network parameters without accepting external input.
@@ -298,19 +304,21 @@ func setNetworkParameters()
 {
    parameters = NetworkParameters
    {
-      learningRate:     0.3,
-      numInputNodes:    2,
-      numHiddenNodes:   5,
-      numOutputNodes:   3,
-      numTestCases:     4,
-      trainMode:        true,
-      weightInit:       1,
-      writeWeights:     true,
-      fileName:         "weights.txt",
-      weightLowerBound: 0.1,
-      weightUpperBound: 1.5,
-      errorThreshold:   2e-4,
-      maxIterations:    100000,
+      learningRate:          0.3,
+      numHiddenLayers:       2,
+      numInputNodes:         2,
+      numShallowHiddenNodes: 5,
+      numDeepHiddenNodes:    5,
+      numOutputNodes:        3,
+      numTestCases:          4,
+      trainMode:             true,
+      weightInit:            1,
+      writeWeights:          true,
+      fileName:              "weights.txt",
+      weightLowerBound:      0.1,
+      weightUpperBound:      1.5,
+      errorThreshold:        2e-4,
+      maxIterations:         100000,
    }
 } // func setNetworkParameters()
 
@@ -325,7 +333,8 @@ func setNetworkParameters()
  * - Network architecture detailed by the count of input, hidden, and output nodes.
  * - The total number of test cases used for training or validation.
  * - Training mode indicator (true for training mode).
- * - Weight initialization method, where "1" denotes random initialization and "2" denotes initialization to zero.
+ * - Weight initialization method, where "1" denotes random initialization and "2" denotes initialization to zero, 3 denotes
+ * -    manual initialization, and 4 denotes loading from a file.
  * - Range for random weight initialization, specifying lower and upper bounds.
  *
  * Limitations:
@@ -361,7 +370,7 @@ func echoNetworkParameters()
  * - A truth table for network inputs as a slice of float64 slices.
  * - An output truth table as a slice of float64.
 
- * If the trainMode parameter is true, structures used exclusively for training (thetas, omegas, psis, deltaWeights)
+ * If the trainMode parameter is true, structures used exclusively for training (thetas, omegas, psis)
  * are allocated. This condition helps optimize memory usage by only allocating necessary arrays.
 
  * Limitations:
@@ -701,7 +710,7 @@ func train(inputs [][]float64, expectedOutputs [][]float64)
    } // for (!done)
    
    executionTime = float64(time.Since(trainStart) / time.Millisecond)
-} // func train(inputs [][]float64, expectedOutputs []float64)
+} // func train(inputs [][]float64, expectedOutputs [][]float64)
 
 /**
  * The reportError function prints the current training error and the number of iterations to the console. The function is

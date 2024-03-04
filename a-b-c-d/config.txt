@@ -6,7 +6,7 @@
 
 :numHiddenLayers 2
 :numInputNodes 2
-:numShallowHiddenNodes 20
+:numShallowHiddenNodes 5
 :numDeepHiddenNodes 5
 :numOutputNodes 3
 

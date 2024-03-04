@@ -1,10 +1,11 @@
 /**
  * This module creates types and functions for the purpose of defining an A-B-C-D neural network. The module includes defining
- * structures that encase network parameters (learning rate, number of hidden nodes, number of input nodes, number of output nodes
- * which is coded to 1, training mode, weight initialization, random weight generation lower and upper bounds, error threshold to
+ * structures that encase network parameters (learning rate, number of shallow hidden nodes, number of deep hidden nodes, number
+ * of input nodes, number of output nodes, number of test cases, writing weights to a file, the weights file name,
+ * training mode, weight initialization, random weight generation lower and upper bounds, error threshold to
  * stop training, and max iterations for training). Furthermore, the NetworkArrays struct defines the arrays and weights following
  * the allocation of these structures.
- * The main function sets the network parameters using 'setNetworkParameters()', echos the parameters through console using
+ * The main function sets the network parameters using 'loadNetworkParameters()', echos the parameters through console using
  * 'echoNetworkParameters()', allocates the memory needed for the network arrays using 'allocateNetworkMemory()', populates
  * the network arrays by initializing the weights using 'populateNetworkMemory()', trains the network using 'train()', and
  * runs the network using 'runTrain()' and 'run()' for every row of the truth table.
@@ -41,6 +42,9 @@ const CONFIG_FROM_FILE bool = true
 
 const INPUT_OUTPUT_ACTIVATIONS int = 2
 
+/**
+ * Constants to decipher the configuration file parameters
+ */
 const LEARNING_RATE = "learningRate"
 const NUM_HIDDEN_LAYERS = "numHiddenLayers"
 const NUM_INPUT_NODES = "numInputNodes"
@@ -126,12 +130,14 @@ var mLayer, kLayer, jLayer, outputLayer int // layer index
  */
 func main()
 {
-   actions := map[bool]func()
+   if (CONFIG_FROM_FILE)
    {
-      true:  loadNetworkParameters,
-      false: setNetworkParameters,
+      loadNetworkParameters()
    }
-   actions[CONFIG_FROM_FILE]()
+   else
+   {
+      setNetworkParameters()
+   }
 
    echoNetworkParameters()
    
@@ -298,10 +304,12 @@ func loadNetworkParameters()
  * - numInputNodes, numHiddenNodes, numOutputNodes: Specify the architecture of the network in terms of neuron counts.
  * - numTestCases: The number of test cases to be used in training/validation.
  * - trainMode: Boolean indicating if the network is in training mode.
- * - weightInit: Method or value for weight initialization; 1 being random, 2 being zeroes.
+ * - weightInit: Method or value for weight initialization; 1 being random, 2 being zeroes, 3 being manual, 4 being load from file.
  * - weightLowerBound, weightUpperBound: Define the range of values for initializing the network weights to random values.
  * - errorThreshold: The error level at which training is considered sufficiently complete.
  * - maxIterations: Limits the number of training iterations.
+ * - writeWeights: Boolean indicating if the weights should be written to a file.
+ * - fileName: The name of the file to write the weights to.
  *
  * Limitations:
  * - The function statically sets network parameters without accepting external input.
@@ -336,10 +344,11 @@ func setNetworkParameters()
  *
  * Displayed Parameters:
  * - Learning rate (λ), error threshold, and maximum iterations for training control only if train mode is true.
- * - Network architecture detailed by the count of input, hidden, and output nodes.
+ * - Network architecture detailed by the count of input, shallow hidden, deep hidden, and output nodes.
  * - The total number of test cases used for training or validation.
  * - Training mode indicator (true for training mode).
- * - Weight initialization method, where "1" denotes random initialization and "2" denotes initialization to zero.
+ * - Weight initialization method, where "1" denotes random initialization and "2" denotes initialization to zero, 3 denotes
+ * -    manual initialization, and 4 denotes loading from a file.
  * - Range for random weight initialization, specifying lower and upper bounds.
  *
  * Limitations:
@@ -367,16 +376,16 @@ func echoNetworkParameters()
 
 /**
  * The allocateNetworkMemory function is responsible for initializing and allocating memory for various arrays and matrices used
- * by the network, including those for input to hidden layer weights, hidden to output layer weights, and other structures
- * for training such as omegas, thetas, and psis. The function also allocates the truth table for
- * inputs and expected outputs.
+ * by the network, including those for input to shallow hidden layer weights, shallow hidden to deep hidden layer weights,
+ * deep hidden to output layer weights, and other structures for training such as omegas, thetas, and psis.
+ * The function also allocates the truth table for inputs and expected outputs.
 
  * Returns:
  * - A NetworkArrays structure containing references to all allocated arrays and matrices used by the network.
  * - A truth table for network inputs as a slice of float64 slices.
  * - An output truth table as a slice of float64.
 
- * If the trainMode parameter is true, structures used exclusively for training (thetas, omegas, psis, deltaWeights)
+ * If the trainMode parameter is true, structures used exclusively for training (thetas, omegas, psis)
  * are allocated. This condition helps optimize memory usage by only allocating necessary arrays.
 
  * Limitations:
@@ -384,6 +393,11 @@ func echoNetworkParameters()
  */
 func allocateNetworkMemory() (NetworkArrays, [][]float64, [][]float64)
 {
+   if (parameters.numHiddenLayers != 2)
+   {
+      panic("2 hidden layers are only supported!")
+   } // if (parameters.numHiddenLayers != 2)
+
    var alpha, beta, input, output int
    
    networkDepth = parameters.numHiddenLayers + INPUT_OUTPUT_ACTIVATIONS
@@ -626,8 +640,8 @@ func activationPrime(x float64) float64
  * 1. Initializes training parameters and stopping condition variables.
  * 2. Enters a training loop that loops over each input:
  *    - Performs forward propagation to compute the network's output.
- *    - Executes backward propagation to calculate gradients and to find the delta weights for every layer.
- *    - Performs another forward propagation to update the error and hidden activations
+ *    - Executes backwardpropagation to calculate and update the delta weights for every connectivity layer.
+ *    - Performs another forward propagation to update the error
  * 3. Updates training error and checks the stopping criteria (error threshold or max iterations).
  * 4. Concludes training when stopping criteria are satisfied.
  *
@@ -728,7 +742,7 @@ func train(inputs [][]float64, expectedOutputs [][]float64)
    } // for (!done)
    
    executionTime = float64(time.Since(trainStart) / time.Millisecond)
-} // func train(inputs [][]float64, expectedOutputs []float64)
+} // func train(inputs [][]float64, expectedOutputs [][]float64)
 
 /**
  * The reportError function prints the current training error and the number of iterations to the console. The function is
@@ -772,15 +786,16 @@ func reportResults()
  * value of the output node (the network's output).
  *
  * Process Overview:
- * 1. Computes weighted sums at the hidden nodes, applying the sigmoid activation function to each sum/theta.
- * 2. Collects the hidden activations, again applying weights and the sigmoid function to produce the final output array.
+ * 1. Computes weighted sums at the shallow hidden nodes, applying the sigmoid activation function to each sum/theta.
+ * 2. Collects the shallow hidden activations, again applying weights and the sigmoid function to get the deep hidden activations.
+ * 2. Collects the deep hidden activations, again applying weights and the sigmoid function to produce the final output array.
  * 3. Returns the network's predictions for the given input.
  *
  * Parameters:
  * - `a`: Input array to use to make a prediction.
  *
  * Limitations:
- * - Assumes that the network's weights (`inputHiddenWeights` and `hiddenOutputWeights`) have been properly initialized.
+ * - Assumes that the network's weights (`weights`) have been properly initialized.
  * - Assumes that the input array `a` matches the size expected by the network.
  */
 func run(a []float64) []float64
@@ -831,24 +846,21 @@ func run(a []float64) []float64
  *    1. Copies the input vector into the network's input layer.
  *    2. For each hidden neuron, computes the weighted sum of its inputs and applies the sigmoid function to
  *       obtain the neuron's output.
- *    3. Calculates the weighted sum of the hidden layer outputs and applies the sigmoid function to determine the network outputs.
- *    4. Computes the error between the small omega i array and the psi i array used for network training.
+ *    3. Calculates the weighted sum of each hidden layer outputs and applies the sigmoid function to
+ *       determine the network outputs.
+ *    4. Computes the error between the omegas array and the psis array used for network training.
  *
  * Parameters:
- * - `a`: Reference to the input layer vector.
- * - `h`: Reference to the hidden layer output vector.
- * - `F`: Reference to the final output vector.
- * - `thetaJ`: Reference to the variable storing the weighted sum of the hidden layer outputs before applying sigmoid.
- * - `thetaI`: Reference to the variable storing the weighted sum of the output layer outputs before applying sigmoid.
- * - `omegaI`: Reference to the vector storing the error between expected and predicted outputs.
- * - `psiI`: Reference to the vector storing the error gradient for the output layer.
- * - `inputHiddenWeights`: Reference to the matrix of weights from the input layer to the hidden layer.
- * - `hiddenOutputWeights`: Reference to the vector of weights from the hidden layer to the output neuron.
+ * - `activations`: Reference to the all the network's activations.
+ * - `thetas`: Reference to the variable storing the weighted sum of right-side layer's outputs before applying sigmoid.
+ * - `omegas`: Reference to the vector storing the error between expected and predicted outputs for every right-side layer.
+ * - `psis`: Reference to the vector storing the error gradient for the output layer for every right-side layer.
+ * - `weights`: Reference to the vector of matrix of weights for every connectivity layer.
  * - `input`: The input vector for the current training example.
  * - `outputs`: The expected outputs for the current training example.
  *
  * Limitations and Conditions:
- * - Assumes that the network's weights (`inputHiddenWeights` and `hiddenOutputWeights`) have been properly initialized.
+ * - Assumes that the network's weights (`weights`) have been properly initialized.
  */
 func runTrain(activations *[][]float64, thetas *[][]float64, omegas *[][]float64, psis *[][]float64, weights *[][][]float64,
               input *[]float64, outputs *[]float64)
@@ -985,8 +997,10 @@ func checkError(err error)
 
 /**
  * The saveWeights function writes the network's weights to a file. The function opens a file for writing and writes the
- * network's architecture and weights to the file. The architecture is written as a string in the format "input-hidden-output".
- * The input-hidden weights are written first, followed by the hidden-output weights.
+ * network's architecture and weights to the file. The architecture is written as a string in the
+ * format "input-hidden-hidden-output".
+ * The input-shallow_hidden weights are written first, followed by the shallow_hidden-deep_hidden weights, followed by the
+ * deep_hidden-output weights.
  *
  * Syntax:
  * - os.Stat(filename string) checks if the file exists.
@@ -1001,9 +1015,10 @@ func checkError(err error)
  * 1. Checks if the file exists and creates a new file if it does not.
  * 2. Opens the file for writing.
  * 3. Writes the network's architecture to the file.
- * 4. Writes the input-hidden weights to the file.
- * 5. Writes the hidden-output weights to the file.
- * 6. Closes the file.
+ * 4. Writes the input-shallow_hidden weights to the file.
+ * 5. Writes the shallow_hidden-deep_hidden weights to the file.
+ * 6. Writes the deeo_hidden-output weights to the file.
+ * 7. Closes the file.
  */
 func saveWeights()
 {
@@ -1075,9 +1090,10 @@ func saveWeights()
 
 /**
  * The loadWeights function reads the network's weights from a file. The function opens a file for reading and reads the
- * network's architecture and weights from the file. The architecture is read as a string in the format "input-hidden-output".
- * The input-hidden weights are read first, followed by the hidden-output weights. The function then checks if the network's
- * architecture matches the architecture in the weights file before reading in the weights.
+ * network's architecture and weights from the file. The architecture is read as a string in the
+ * format "input-hidden-hidden-output".
+ * All of the weights for every connectivity layer are read in order of the network propagation rule. The function then
+ * checks if the network's architecture matches the architecture in the weights file before reading in the weights.
  *
  * Syntax:
  * - os.Stat(filename string) checks if the file exists.

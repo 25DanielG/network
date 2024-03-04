@@ -1,7 +1,7 @@
 /**
  * This module creates types and functions for the purpose of defining an A-B-C neural network. The module includes defining
  * structures that encase network parameters (learning rate, number of hidden nodes, number of input nodes, number of output nodes
- * which is coded to 1, training mode, weight initialization, random weight generation lower and upper bounds, error threshold to
+ * which is coded to C, training mode, weight initialization, random weight generation lower and upper bounds, error threshold to
  * stop training, and max iterations for training). Furthermore, the NetworkArrays struct defines the arrays and weights following
  * the allocation of these structures.
  * The main function sets the network parameters using 'setNetworkParameters()', echos the parameters through console using
@@ -134,10 +134,12 @@ func main()
  * - numInputNodes, numHiddenNodes, numOutputNodes: Specify the architecture of the network in terms of neuron counts.
  * - numTestCases: The number of test cases to be used in training/validation.
  * - trainMode: Boolean indicating if the network is in training mode.
- * - weightInit: Method or value for weight initialization; 1 being random, 2 being zeroes.
+ * - weightInit: Method or value for weight initialization; 1 being random, 2 being zeroes, 3 being manual, 4 being load from file.
  * - weightLowerBound, weightUpperBound: Define the range of values for initializing the network weights to random values.
  * - errorThreshold: The error level at which training is considered sufficiently complete.
  * - maxIterations: Limits the number of training iterations.
+ * - writeWeights: Boolean indicating if the weights should be written to a file.
+ * - fileName: The name of the file to write the weights to.
  *
  * Limitations:
  * - The function statically sets network parameters without accepting external input.
@@ -173,7 +175,8 @@ func setNetworkParameters()
  * - Network architecture detailed by the count of input, hidden, and output nodes.
  * - The total number of test cases used for training or validation.
  * - Training mode indicator (true for training mode).
- * - Weight initialization method, where "1" denotes random initialization and "2" denotes initialization to zero.
+ * - Weight initialization method, where "1" denotes random initialization and "2" denotes initialization to zero, 3 denotes
+ * -    manual initialization, and 4 denotes loading from a file.
  * - Range for random weight initialization, specifying lower and upper bounds.
  *
  * Limitations:
@@ -600,7 +603,7 @@ func train(inputs [][]float64, expectedOutputs [][]float64)
    } // for (!done)
    
    executionTime = float64(time.Since(trainStart) / time.Millisecond)
-} // func train(inputs [][]float64, expectedOutputs []float64)
+} // func train(inputs [][]float64, expectedOutputs [][]float64)
 
 /**
  * The reportError function prints the current training error and the number of iterations to the console. The function is
