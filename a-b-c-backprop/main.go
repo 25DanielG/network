@@ -537,6 +537,11 @@ func loadTestData()
       } // if (len(parts) == parameters.numInputNodes + parameters.numOutputNodes + 1)
       test++
    } // for (scanner.Scan() && test < parameters.numTestCases)
+
+   if (test != parameters.numTestCases)
+   {
+      panic("Test data file does not contain the correct amount of test cases!")
+   }
 } // func loadTestData()
 
 /**

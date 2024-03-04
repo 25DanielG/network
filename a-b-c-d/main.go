@@ -527,52 +527,57 @@ func allocateNetworkMemory() (NetworkArrays, [][]float64, [][]float64)
  * - Assumes that the test data file exists and is correctly formatted.
  * - Assumes the `truthTable` and `expectedOutput` arrays are properly allocated.
  */
- func loadTestData()
- {
-    var file *os.File
-    var err error
-    var fileExists bool = false
-    var testLine string
-    var test, k, i int
+func loadTestData()
+{
+   var file *os.File
+   var err error
+   var fileExists bool = false
+   var testLine string
+   var test, k, i int
+
+   _, err = os.Stat(parameters.testDataFile)
+   if (err == nil)
+   {
+      fileExists = true
+   }
+
+   if (!fileExists)
+   {
+      panic("Test data file does not exist!")
+   }
+
+   file, err = os.OpenFile(parameters.testDataFile, os.O_RDONLY, 0644) // open file in read-only mode
+   checkError(err)
  
-    _, err = os.Stat(parameters.testDataFile)
-    if (err == nil)
-    {
-       fileExists = true
-    }
+   defer file.Close()
  
-    if (!fileExists)
-    {
-       panic("Test data file does not exist!")
-    }
+   var scanner *bufio.Scanner = bufio.NewScanner(file)
+
+   test = 0
  
-    file, err = os.OpenFile(parameters.testDataFile, os.O_RDONLY, 0644) // open file in read-only mode
-    checkError(err)
- 
-    defer file.Close()
- 
-    var scanner *bufio.Scanner = bufio.NewScanner(file)
- 
-    test = 0
- 
-    for (scanner.Scan() && test < parameters.numTestCases)
-    {
-       testLine = scanner.Text()
-       parts := strings.Fields(testLine)
-       if (len(parts) == parameters.numInputNodes + parameters.numOutputNodes + 1)
-       {
-          for k = 0; k < parameters.numInputNodes; k++
-          {
-             truthTable[test][k], _ = strconv.ParseFloat(parts[k], 64)
-          }
-          for i = 0; i < parameters.numOutputNodes; i++
-          {
-             expectedOutputs[test][i], _ = strconv.ParseFloat(parts[i + parameters.numInputNodes + 1], 64)
-          }
-       } // if (len(parts) == parameters.numInputNodes + parameters.numOutputNodes + 1)
-       test++
-    } // for (scanner.Scan() && test < parameters.numTestCases)
- } // func loadTestData()
+   for (scanner.Scan() && test < parameters.numTestCases)
+   {
+      testLine = scanner.Text()
+      parts := strings.Fields(testLine)
+      if (len(parts) == parameters.numInputNodes + parameters.numOutputNodes + 1)
+      {
+         for k = 0; k < parameters.numInputNodes; k++
+         {
+            truthTable[test][k], _ = strconv.ParseFloat(parts[k], 64)
+         }
+         for i = 0; i < parameters.numOutputNodes; i++
+         {
+            expectedOutputs[test][i], _ = strconv.ParseFloat(parts[i + parameters.numInputNodes + 1], 64)
+         }
+      } // if (len(parts) == parameters.numInputNodes + parameters.numOutputNodes + 1)
+      test++
+   } // for (scanner.Scan() && test < parameters.numTestCases)
+
+   if (test != parameters.numTestCases)
+   {
+      panic("Test data file does not contain the correct amount of test cases!")
+   }
+} // func loadTestData()
 
 /**
  * The populateNetworkMemory function initializes the network's weight matrices and sets up the truth table and expected outputs
