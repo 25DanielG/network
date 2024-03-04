@@ -633,7 +633,7 @@ func populateNetworkMemory()
       expectedOutputs[3][0] = 1.0
       expectedOutputs[3][1] = 1.0
       expectedOutputs[3][2] = 0.0
-   }
+   } // if (parameters.externalTestData)
 } // func populateNetworkMemory()
 
 /**
