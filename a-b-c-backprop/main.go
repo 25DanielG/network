@@ -13,6 +13,7 @@
  * create, allocate, and populate the A-B-C neural network. The training algorithm utilizes gradient descent to minimize the
  * error function. The network also uses backpropagation to update the weights efficiently.
  * @author Daniel Gergov
+ * @credits The code uses a configuration file parsing tool for Go at https://github.com/spf13/viper.
  * @creation 3/1/24
  */
 
@@ -29,6 +30,8 @@ import
    "strconv" // convert int to string
    "bufio"   // read and write files
    "strings" // manipulate strings
+
+   "github.com/spf13/viper" // viper for config parsing
 ) // import
 
 const MILLISECONDS_IN_SECOND float64 = 1000.0
@@ -39,26 +42,6 @@ const DAYS_IN_WEEK float64 = 7.0
 
 const CONFIG_FILE string = "config.txt"
 const CONFIG_FROM_FILE bool = true
-
-const LEARNING_RATE = "learningRate"
-const NUM_HIDDEN_NODES = "numHiddenNodes"
-const NUM_INPUT_NODES = "numInputNodes"
-const NUM_OUTPUT_NODES = "numOutputNodes"
-const NUM_TEST_CASES = "numTestCases"
-const EXTERNAL_TEST_DATA = "externalTestData"
-const TEST_DATA_FILE = "testDataFile"
-const TRAIN_MODE = "trainMode"
-const WEIGHT_INIT = "weightInit"
-const WRITE_WEIGHTS = "writeWeights"
-const FILE_NAME = "fileName"
-const WEIGHT_LOWER_BOUND = "weightLowerBound"
-const WEIGHT_UPPER_BOUND = "weightUpperBound"
-const ERROR_THRESHOLD = "errorThreshold"
-const MAX_ITERATIONS = "maxIterations"
-const WEIGHT_SAVE_EVERY = "weightSaveEvery"
-const KEEP_ALIVE_EVERY = "keepAliveEvery"
-
-const CONFIG_PREFIX = ":"
 
 type NetworkParameters struct
 {
@@ -72,10 +55,11 @@ type NetworkParameters struct
    externalTestData bool
    testDataFile     string
    
-   trainMode  bool
-   weightInit int // 1 is randomize, 2 is zero, 3 is manual, 4 is load from file
-   writeWeights bool
-   fileName string
+   trainMode          bool
+   weightInit         int // 1 is randomize, 2 is zero, 3 is manual, 4 is load from file
+   writeWeights       bool
+   fileName           string
+   activationFunction string // sigmoid, tanh, linear
    
    weightLowerBound float64
    weightUpperBound float64
@@ -94,10 +78,6 @@ type NetworkArrays struct
    inputHiddenWeights       *[][]float64
    hiddenOutputWeights      *[][]float64
    thetaJ                   *[]float64
-   omegaJ                   *[]float64
-   psiJ                     *[]float64
-   thetaI                   *[]float64
-   omegaI                   *[]float64
    psiI                     *[]float64
 } // type NetworkArrays struct
 
@@ -112,6 +92,9 @@ var epochError float64
 var inputError float64
 var epoch int
 var executionTime float64
+
+var activationFunction func(float64) float64
+var activationPrime func(float64) float64
 
 /**
  * The main function initiates network parameter configuration, memory allocation for network operations, and executes
@@ -161,29 +144,17 @@ func main()
 
 /**
  * The loadNetworkParameters function reads the network configuration parameters from a file and sets the global `parameters`
- * structure accordingly. The function reads the configuration file line by line, parsing each line to extract the parameter
- * name and value. It then sets the corresponding parameter in the `parameters` structure.
+ * structure accordingly. It then sets the corresponding parameter in the `parameters` structure.
  *
- * The config file is assumed to have all necessary parameters set with a prefix + parameter name and a space-separated value.
- * Therefore, the function looks for the prefix + parameter name at the beginning of each line and sets the corresponding
- * parameter in the `parameters` structure.
+ * The config file is assumed to have all necessary parameters set with parameter name and a space-separated value.
+ * The function uses the viper package to read the configuration file and set the parameters in the `parameters` structure.
  *
  * Process:
  * 1. The function checks if the configuration file exists. If not, the function panics.
- * 2. The function opens the configuration file in read-only mode and creates a scanner to read the file line by line.
- * 3. The function parses each line to extract the parameter name and value, then sets the corresponding parameter in
- *    the `parameters`
+ * 2. The function uses the viper package to read the configuration file and set the parameters in the `parameters` structure.
  *
  * Syntax:
  * - os.Stat(filename string) checks if the file exists.
- * - os.OpenFile(filename string, flag int, perm os.FileMode) opens a file for writing.
- * - error.Is(err error, target error) checks if the error is equal to the target error.
- * - defer file.Close() defers the file's closure until the function returns.
- * - bufio.NewScanner(file *os.File) creates a new scanner to read the file line by line.
- * - scanner.Scan() reads the next line from the file.
- * - scanner.Text() returns the current line from the scanner.
- * - strings.HasPrefix(s, prefix string) checks if the string starts with the given prefix.
- * - strings.Fields(s string) splits the string into fields separated by whitespace.
  *
  * Limitations:
  * - Assumes that the configuration file exists and is correctly formatted.
@@ -191,10 +162,8 @@ func main()
  */
 func loadNetworkParameters()
 {
-   var file *os.File
    var err error
    var fileExists bool = false
-   var configLine string
 
    _, err = os.Stat(CONFIG_FILE)
    if (err == nil)
@@ -207,100 +176,26 @@ func loadNetworkParameters()
       panic("Configuration file does not exist!")
    }
 
-   file, err = os.OpenFile(CONFIG_FILE, os.O_RDONLY, 0644) // open file in read-only mode
-   checkError(err)
+   customConfiguration(CONFIG_FILE)
 
-   defer file.Close()
-
-   var scanner *bufio.Scanner = bufio.NewScanner(file)
-
-   parameters = NetworkParameters{}
-
-   for (scanner.Scan())
-   {
-      configLine = scanner.Text()
-
-      if (strings.HasPrefix(configLine, CONFIG_PREFIX))
-      {
-         parts := strings.Fields(configLine)
-         if (len(parts) == 2)
-         {
-            variableName := parts[0]
-            variableValue := parts[1]
-
-            switch variableName
-            {
-               case CONFIG_PREFIX + LEARNING_RATE:
-                  parameters.learningRate, _ = strconv.ParseFloat(variableValue, 64)
-                  break
-
-               case CONFIG_PREFIX + NUM_HIDDEN_NODES:
-                  parameters.numHiddenNodes, _ = strconv.Atoi(variableValue)
-                  break
-
-               case CONFIG_PREFIX + NUM_INPUT_NODES:
-                  parameters.numInputNodes, _ = strconv.Atoi(variableValue)
-                  break
-
-               case CONFIG_PREFIX + NUM_OUTPUT_NODES:
-                  parameters.numOutputNodes, _ = strconv.Atoi(variableValue)
-                  break
-
-               case CONFIG_PREFIX + NUM_TEST_CASES:
-                  parameters.numTestCases, _ = strconv.Atoi(variableValue)
-                  break
-
-               case CONFIG_PREFIX + EXTERNAL_TEST_DATA:
-                  parameters.externalTestData, _ = strconv.ParseBool(variableValue)
-                  break
-
-               case CONFIG_PREFIX + TEST_DATA_FILE:
-                  parameters.testDataFile = variableValue
-                  break
-
-               case CONFIG_PREFIX + TRAIN_MODE:
-                  parameters.trainMode, _ = strconv.ParseBool(variableValue)
-                  break
-
-               case CONFIG_PREFIX + WEIGHT_INIT:
-                  parameters.weightInit, _ = strconv.Atoi(variableValue)
-                  break
-
-               case CONFIG_PREFIX + WRITE_WEIGHTS:
-                  parameters.writeWeights, _ = strconv.ParseBool(variableValue)
-                  break
-
-               case CONFIG_PREFIX + FILE_NAME:
-                  parameters.fileName = variableValue
-                  break
-
-               case CONFIG_PREFIX + WEIGHT_LOWER_BOUND:
-                  parameters.weightLowerBound, _ = strconv.ParseFloat(variableValue, 64)
-                  break
-
-               case CONFIG_PREFIX + WEIGHT_UPPER_BOUND:
-                  parameters.weightUpperBound, _ = strconv.ParseFloat(variableValue, 64)
-                  break
-
-               case CONFIG_PREFIX + ERROR_THRESHOLD:
-                  parameters.errorThreshold, _ = strconv.ParseFloat(variableValue, 64)
-                  break
-
-               case CONFIG_PREFIX + MAX_ITERATIONS:
-                  parameters.maxIterations, _ = strconv.Atoi(variableValue)
-                  break
-
-               case CONFIG_PREFIX + WEIGHT_SAVE_EVERY:
-                  parameters.weightSaveEvery, _ = strconv.Atoi(variableValue)
-                  break
-
-               case CONFIG_PREFIX + KEEP_ALIVE_EVERY:
-                  parameters.keepAliveEvery, _ = strconv.Atoi(variableValue)
-                  break
-            } // switch variableName
-         } // if (len(parts) == 2)
-      } // if (strings.HasPrefix(configLine, CONFIG_PREFIX))
-   } // for (scanner.Scan())
+   parameters.learningRate = viper.GetFloat64("learningRate")
+   parameters.numInputNodes = viper.GetInt("numInputNodes")
+   parameters.numHiddenNodes = viper.GetInt("numHiddenNodes")
+   parameters.numOutputNodes = viper.GetInt("numOutputNodes")
+   parameters.numTestCases = viper.GetInt("numTestCases")
+   parameters.externalTestData = viper.GetBool("externalTestData")
+   parameters.testDataFile = viper.GetString("testDataFile")
+   parameters.trainMode = viper.GetBool("trainMode")
+   parameters.weightInit = viper.GetInt("weightInit")
+   parameters.writeWeights = viper.GetBool("writeWeights")
+   parameters.fileName = viper.GetString("fileName")
+   parameters.activationFunction = viper.GetString("activationFunction")
+   parameters.weightLowerBound = viper.GetFloat64("weightLowerBound")
+   parameters.weightUpperBound = viper.GetFloat64("weightUpperBound")
+   parameters.errorThreshold = viper.GetFloat64("errorThreshold")
+   parameters.maxIterations = viper.GetInt("maxIterations")
+   parameters.weightSaveEvery = viper.GetInt("weightSaveEvery")
+   parameters.keepAliveEvery = viper.GetInt("keepAliveEvery")
 } // func loadNetworkParameters()
 
 /**
@@ -317,6 +212,7 @@ func loadNetworkParameters()
  * - externalTestData: Boolean indicating if the test data is external to the program.
  * - testDataFile: The name of the file containing the test data.
  * - trainMode: Boolean indicating if the network is in training mode.
+ * - activationFunction: The activation function to be used by the network.
  * - weightInit: Method or value for weight initialization; 1 being random, 2 being zeroes, 3 being manual, 4 being load from file.
  * - weightLowerBound, weightUpperBound: Define the range of values for initializing the network weights to random values.
  * - errorThreshold: The error level at which training is considered sufficiently complete.
@@ -333,23 +229,24 @@ func setNetworkParameters()
 {
    parameters = NetworkParameters
    {
-      learningRate:     0.3,
-      numInputNodes:    2,
-      numHiddenNodes:   5,
-      numOutputNodes:   3,
-      numTestCases:     4,
-      externalTestData: true,
-      testDataFile:     "data.txt",
-      trainMode:        true,
-      weightInit:       1,
-      writeWeights:     true,
-      fileName:         "weights.txt",
-      weightLowerBound: 0.1,
-      weightUpperBound: 1.5,
-      errorThreshold:   2e-4,
-      maxIterations:    100000,
-      weightSaveEvery:  10000,
-      keepAliveEvery:   100000,
+      learningRate:       0.3,
+      numInputNodes:      2,
+      numHiddenNodes:     5,
+      numOutputNodes:     3,
+      numTestCases:       4,
+      externalTestData:   true,
+      testDataFile:       "data.txt",
+      trainMode:          true,
+      activationFunction: "sigmoid",
+      weightInit:         1,
+      writeWeights:       true,
+      fileName:           "weights.txt",
+      weightLowerBound:   0.1,
+      weightUpperBound:   1.5,
+      errorThreshold:     2e-4,
+      maxIterations:      100000,
+      weightSaveEvery:    10000,
+      keepAliveEvery:     100000,
    }
 } // func setNetworkParameters()
 
@@ -361,6 +258,7 @@ func setNetworkParameters()
  *
  * Displayed Parameters:
  * - Learning rate (λ), error threshold, and maximum iterations for training control only if train mode is true.
+ * - Activation function used by the network.
  * - Network architecture detailed by the count of input, hidden, and output nodes.
  * - The total number of test cases used for training or validation.
  * - Training mode indicator (true for training mode).
@@ -387,6 +285,7 @@ func echoNetworkParameters()
    fmt.Printf("Network: %d-%d-%d, NumberTestCases: %d\n",
       parameters.numInputNodes, parameters.numHiddenNodes, parameters.numOutputNodes, parameters.numTestCases)
 
+   fmt.Printf("Activation Function: %s\n", parameters.activationFunction)
    fmt.Printf("Train Mode: %t\n", parameters.trainMode)
    fmt.Printf("Weight Init: %d -- 1 = random, 2 = zero, 3 = manual, 4 = load from file\n", parameters.weightInit)
    fmt.Printf("Test Data: %t -- true = external, 2 = internal\n", parameters.externalTestData)
@@ -432,15 +331,11 @@ func allocateNetworkMemory() (NetworkArrays, [][]float64, [][]float64)
 
    var F []float64 = make([]float64, parameters.numOutputNodes)
    
-   var thetaJ, omegaJ, psiJ, thetaI, omegaI, psiI []float64
+   var thetaJ, psiI []float64
    
    if (parameters.trainMode)
    {
       thetaJ = make([]float64, parameters.numHiddenNodes)
-      omegaJ = make([]float64, parameters.numHiddenNodes)
-      psiJ = make([]float64, parameters.numHiddenNodes)
-      thetaI = make([]float64, parameters.numOutputNodes)
-      omegaI = make([]float64, parameters.numOutputNodes)
       psiI = make([]float64, parameters.numOutputNodes)
    } // if (parameters.trainMode)
    
@@ -464,10 +359,6 @@ func allocateNetworkMemory() (NetworkArrays, [][]float64, [][]float64)
       hiddenOutputWeights:            &hiddenOutputWeights,
       F:                              &F,
       thetaJ:                         &thetaJ,
-      omegaJ:                         &omegaJ,
-      psiJ:                           &psiJ,
-      thetaI:                         &thetaI,
-      omegaI:                         &omegaI,
       psiI:                           &psiI,
    }, inputTruthTable, outputTruthTable
 } // func allocateNetworkMemory() NetworkArrays
@@ -634,6 +525,9 @@ func populateNetworkMemory()
       expectedOutputs[3][1] = 1.0
       expectedOutputs[3][2] = 0.0
    } // if (parameters.externalTestData)
+
+   assignActivationFunction()
+   assignActivationPrime()
 } // func populateNetworkMemory()
 
 /**
@@ -685,34 +579,126 @@ func sigmoidDerivative(x float64) float64
 }
 
 /**
- * The activationFunction function acts as a wrapper to the current activation function being used. Such a function increases
- * the usability of the code as one can change the activation function at once place in the source code.
+ * The hyperbolic tangent function calculates the tanh activation of a given input value `x`. The tanh activation function
+ * introduces non-linearity into a model.
+ *
+ * The tanh of `x` follows the formula:
+ * tanh(x) = (e^x - e^(-x)) / (e^x + e^(-x))
  *
  * Parameters:
- * - x: The input value for which to apply the activation function to.
+ * - x: The input value for which to apply tanh formula.
  *
  * Returns:
- * - The output of the activation function
+ * - The tanh activation of `x`, a float64 value in the range (-1, 1).
  */
-func activationFunction(x float64) float64
+func tanh(x float64) float64
 {
-   return sigmoid(x)
+   return math.Tanh(x)
 }
 
 /**
- * The activationPrime function acts as a wrapper to the current activation function's derivative being used. Such a function
- * increases the usability of the code as one can change the activation function derivative at once place in the source code.
+ * The tanhDerivative function computes the derivative of the tanh activation function for a given input value `x`.
+ * The derivative is used the calculation for the delta weights through computing the psi variables. The function first
+ * calculates the tanh of `x`, then applies the derivative formula of the tanh function.
+ *
+ * The derivative of the tanh function S(x) is given by:
+ * T'(x) = 1 - (T(x) - T(x))
+ * where T(x) is the tanh of `x`.
  *
  * Parameters:
- * - x: The input value for which to apply the activation function's derivative to.
+ * - x: The input value for which to apply the tanh derivative formula.
  *
  * Returns:
- * - The output of the activation function's derivative
+ * - The derivative of the tanh function of `x`, a float64 value in the range (0, 1].
  */
-func activationPrime(x float64) float64
+func tanhDerivative(x float64) float64
 {
-   return sigmoidDerivative(x)
+   x = tanh(x)
+   return 1.0 - (x * x)
 }
+
+/**
+ * The linear function returns the given input value `x`. The linear activation function reverts the model back to linearity.
+ *
+ * The linear activation function of `x` follows the formula:
+ * linear(x) = x
+ *
+ * Parameters:
+ * - x: The input value for which to apply linear function.
+ *
+ * Returns:
+ * - `x`, a float64 value which is the same as the input `x`.
+ */
+func linear(x float64) float64
+{
+   return x
+}
+
+/**
+ * The linearDerivative function computes the derivative of the linear activation function for a given input value `x`.
+ * The derivative is used the calculation for the delta weights through computing the psi variables. The function returns 1.
+ *
+ * The derivative of the linear function L(x) is given by:
+ * L'(x) = 1
+ *
+ * Parameters:
+ * - x: The input value for which to apply the linear derivative function.
+ *
+ * Returns:
+ * - The value 1.
+ */
+func linearDerivative(x float64) float64
+{
+   return 1.0
+}
+
+/**
+ * The assignActivationFunction function acts as a function to set the activation function being used.
+ * The function allows the ability to change the activation function using a config file in other functions. The function assigns
+ * the activation function to the function specified in the config file.
+ */
+func assignActivationFunction()
+{
+   if (parameters.activationFunction == "sigmoid")
+   {
+      activationFunction = sigmoid
+   }
+   else
+   {
+      if (parameters.activationFunction == "tanh")
+      {
+         activationFunction = tanh
+      }
+      else
+      {
+         activationFunction = linear
+      }
+   } // if (parameters.activationFunction == "sigmoid")
+} // func assignActivationFunction()
+
+/**
+ * The assignActivationPrime function acts as a function to set the activation function's derivative being used.
+ * The function allows the ability to change the activation function using a config file in other functions. The function assigns
+ * the activation function's derivative to the function specified in the config file.
+ */
+func assignActivationPrime()
+{
+   if (parameters.activationFunction == "sigmoid")
+   {
+      activationPrime = sigmoidDerivative
+   }
+   else
+   {
+      if (parameters.activationFunction == "tanh")
+      {
+         activationPrime = tanhDerivative
+      }
+      else
+      {
+         activationPrime = linearDerivative
+      }
+   } // if (parameters.activationFunction == "sigmoid")
+} // func assignActivationPrime()
 
 /**
  * The train function runs the neural network's training process using a given set of inputs and their expected outputs.
@@ -746,18 +732,14 @@ func train(inputs [][]float64, expectedOutputs [][]float64)
    epoch = 0
 
    var input, j, k, i int
-   var deltaWeightJI, deltaWeightKJ float64
+   var omegaI, omegaJ, psiJ, deltaWeightJI, deltaWeightKJ float64
    
    var a []float64 = *arrays.a
    var h []float64 = *arrays.h
    var F []float64 = *arrays.F
 
    var thetaJ []float64 = *arrays.thetaJ
-   var omegaJ []float64 = *arrays.omegaJ
-   var psiJ []float64 = *arrays.psiJ
 
-   var thetaI []float64 = *arrays.thetaI
-   var omegaI []float64 = *arrays.omegaI
    var psiI []float64 = *arrays.psiI
 
    var inputHiddenWeights [][]float64 = *arrays.inputHiddenWeights
@@ -770,44 +752,33 @@ func train(inputs [][]float64, expectedOutputs [][]float64)
       {
          inputError = 0.0
 
-         runTrain(&a, &h, &F, &thetaJ, &thetaI, &omegaI, &psiI, &inputHiddenWeights, &hiddenOutputWeights, &inputs[input],
+         runTrain(&a, &h, &F, &thetaJ, &psiI, &inputHiddenWeights, &hiddenOutputWeights, &inputs[input],
                   &expectedOutputs[input])
-         
-         for i = 0; i < parameters.numOutputNodes; i++
-         {
-            inputError += omegaI[i] * omegaI[i]
-         } // for i = 0; i < parameters.numOutputNodes; i++
-         
-         inputError /= 2.0
          
          for j = 0; j < parameters.numHiddenNodes; j++
          {
-            omegaJ[j] = 0.0
+            omegaJ = 0.0
             for i = 0; i < parameters.numOutputNodes; i++
             {
-               omegaJ[j] += psiI[i] * hiddenOutputWeights[j][i]
+               omegaJ += psiI[i] * hiddenOutputWeights[j][i]
                deltaWeightJI = parameters.learningRate * h[j] * psiI[i]
                hiddenOutputWeights[j][i] += deltaWeightJI
             } // for i = 0; i < parameters.numOutputNodes; i++
 
-            psiJ[j] = omegaJ[j] * activationPrime(thetaJ[j])
+            psiJ = omegaJ * activationPrime(thetaJ[j])
             
             for k = 0; k < parameters.numInputNodes; k++
             {
-               deltaWeightKJ = parameters.learningRate * a[k] * psiJ[j]
+               deltaWeightKJ = parameters.learningRate * a[k] * psiJ
                inputHiddenWeights[k][j] += deltaWeightKJ
             } // for k = 0; k < parameters.numInputNodes; k++
          } // for j = 0; j < parameters.numHiddenNodes; j++
          
-         runTrain(&a, &h, &F, &thetaJ, &thetaI, &omegaI, &psiI, &inputHiddenWeights, &hiddenOutputWeights, &inputs[input],
-                  &expectedOutputs[input])
-         
-         inputError = 0.0
-
-         for i = 0; i < parameters.numOutputNodes; i++
+         for i = range run(inputs[input])
          {
-            inputError += omegaI[i] * omegaI[i]
-         } // for i = 0; i < parameters.numOutputNodes; i++
+            omegaI = expectedOutputs[input][i] - F[i]
+            inputError += omegaI * omegaI
+         } // for i = range run(inputs[input])
 
          inputError /= 2.0
          epochError += inputError
@@ -933,8 +904,6 @@ func run(a []float64) []float64
  * - `h`: Reference to the hidden layer output vector.
  * - `F`: Reference to the final output vector.
  * - `thetaJ`: Reference to the variable storing the weighted sum of the hidden layer outputs before applying sigmoid.
- * - `thetaI`: Reference to the variable storing the weighted sum of the output layer outputs before applying sigmoid.
- * - `omegaI`: Reference to the vector storing the error between expected and predicted outputs.
  * - `psiI`: Reference to the vector storing the error gradient for the output layer.
  * - `inputHiddenWeights`: Reference to the matrix of weights from the input layer to the hidden layer.
  * - `hiddenOutputWeights`: Reference to the vector of weights from the hidden layer to the output neuron.
@@ -944,10 +913,11 @@ func run(a []float64) []float64
  * Limitations and Conditions:
  * - Assumes that the network's weights (`inputHiddenWeights` and `hiddenOutputWeights`) have been properly initialized.
  */
-func runTrain(a *[]float64, h *[]float64, F *[]float64, thetaJ *[]float64, thetaI *[]float64, omegaI *[]float64, psiI *[]float64,
-              inputHiddenWeights *[][]float64, hiddenOutputWeights *[][]float64, input *[]float64, outputs *[]float64)
+func runTrain(a *[]float64, h *[]float64, F *[]float64, thetaJ *[]float64, psiI *[]float64, inputHiddenWeights *[][]float64,
+              hiddenOutputWeights *[][]float64, input *[]float64, outputs *[]float64)
 {
    var j, k, i int
+   var omegaI, thetaI float64
    
    for k = 0; k < parameters.numInputNodes; k++
    {
@@ -967,15 +937,15 @@ func runTrain(a *[]float64, h *[]float64, F *[]float64, thetaJ *[]float64, theta
    
    for i = 0; i < parameters.numOutputNodes; i++
    {
-      (*thetaI)[i] = 0.0
+      thetaI = 0.0
       for j = 0; j < parameters.numHiddenNodes; j++
       {
-         (*thetaI)[i] += (*h)[j] * (*hiddenOutputWeights)[j][i]
+         thetaI += (*h)[j] * (*hiddenOutputWeights)[j][i]
       } // for j = 0; j < parameters.numHiddenNodes; j++
 
-      (*F)[i] = activationFunction((*thetaI)[i])
-      (*omegaI)[i] = (*outputs)[i] - (*F)[i]
-      (*psiI)[i] = (*omegaI)[i] * activationPrime((*thetaI)[i])
+      (*F)[i] = activationFunction(thetaI)
+      omegaI = (*outputs)[i] - (*F)[i]
+      (*psiI)[i] = omegaI * activationPrime(thetaI)
    } // for i = 0; i < parameters.numOutputNodes; i++
 } // func runTrain(a *[]float64...
 
@@ -1064,7 +1034,7 @@ func checkError(err error)
       fmt.Println("Received an error:", err)
       panic(err)
    } // if (err != nil)
-}
+} // func checkError(err error)
 
 /**
  * The saveWeights function writes the network's weights to a file. The function opens a file for writing and writes the
@@ -1142,7 +1112,7 @@ func saveWeights()
          checkError(err)
       } // for i = 0; i < parameters.numOutputNodes; i++
    } // for j = 0; j < parameters.numHiddenNodes; j++
-}
+} // func saveWeights()
 
 /**
  * The loadWeights function reads the network's weights from a file. The function opens a file for reading and reads the
@@ -1213,4 +1183,60 @@ func loadWeights()
          checkError(err)
       } // for i = 0; i < parameters.numOutputNodes; i++
    } // for j = 0; j < parameters.numHiddenNodes; j++
-}
+} // func loadWeights()
+
+/**
+ * The customConfiguration function defines a custom configuration for the network's parameters. The function reads the
+ * configuration from a file and sets the parameters based on the configuration. The configuration file is expected to
+ * contain key-value pairs, with each pair separated by a space. The function reads the file line by line, parses each
+ * line to extract the key and value, and sets the corresponding parameter in the `viper` configuration.
+ *
+ * Syntax:
+ * - os.Open(filename string) opens a file for reading.
+ * - strings.SplitN(s, sep string, n int) splits the string into fields separated by whitespace.
+ * - viper.Set(key string, value interface{}) sets the value of a key in the configuration.
+ *
+ * Parameters:
+ * - `filePath`: The path to the configuration file.
+ */
+func customConfiguration(filePath string)
+{
+   var file *os.File
+   var err error
+   var scanner *bufio.Scanner
+   var line, key, value string
+   var parts []string
+
+   file, err = os.Open(filePath)
+   if (err != nil)
+   {
+      panic(fmt.Errorf("Fatal error in opening config file: %w", err))
+   }
+
+   defer file.Close()
+
+   scanner = bufio.NewScanner(file)
+   for (scanner.Scan())
+   {
+      line = scanner.Text()
+
+      if (line == "" || strings.HasPrefix(line, "/") || strings.HasPrefix(line, "|") || strings.HasPrefix(line, "\\"))
+      {
+         continue
+      }
+
+      parts = strings.SplitN(line, " ", 2)
+      if (len(parts) == 2)
+      {
+         key = parts[0]
+         value = parts[1]
+         viper.Set(key, value)
+      } // if (len(parts) == 2)
+   } // for (scanner.Scan())
+
+   err = scanner.Err();
+   if (err != nil)
+   {
+      panic(fmt.Errorf("Error in scanning config file: %w", err))
+   }
+} // func customConfiguration(filePath string)

@@ -4,32 +4,33 @@
 
 | LAYER PARAMETERS |
 
-:numHiddenLayers 2
-:numInputNodes 2
-:numShallowHiddenNodes 5
-:numDeepHiddenNodes 5
-:numOutputNodes 3
+numHiddenLayers 2
+numInputNodes 2
+numShallowHiddenNodes 5
+numDeepHiddenNodes 100
+numOutputNodes 3
 
 | TRAIN PARAMETERS |
 
-:trainMode true
-:learningRate 0.3
+trainMode true
+learningRate 0.3
+activationFunction sigmoid
 
 // 1 Random, 2 Zero, 3 Manual, 4 Load from file
-:weightInit 1
+weightInit 1
 
-:writeWeights true
-:fileName weights.txt
+writeWeights true
+fileName weights.txt
 
-:weightLowerBound 0.1
-:weightUpperBound 1.5
-:errorThreshold 2e-4
-:maxIterations 100000
-:weightSaveEvery 50000
-:keepAliveEvery 100000
+weightLowerBound 0.1
+weightUpperBound 1.5
+errorThreshold 2e-4
+maxIterations 100000
+weightSaveEvery 50000
+keepAliveEvery 100000
 
 |  RUN PARAMETERS  |
 
-:numTestCases 4
-:externalTestData true
-:testDataFile data.txt
+numTestCases 4
+externalTestData true
+testDataFile data.txt
