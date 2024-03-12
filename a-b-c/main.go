@@ -78,6 +78,7 @@ var parameters NetworkParameters
 var arrays NetworkArrays
 var truthTable [][]float64
 var expectedOutputs [][]float64
+var testedOutputs [][]float64
 
 var trainStart time.Time
 var done bool
@@ -90,7 +91,7 @@ var executionTime float64
  * The main function initiates network parameter configuration, memory allocation for network operations, and executes
  * network training and testing. It follows these steps:
  * 1. Sets and displays network parameters.
- * 2. Allocates and populates network memory for arrays, truth table, and expected outputs.
+ * 2. Allocates and populates network memory for arrays, truth table, expected outputs, and ran outputs.
  * 3. Trains the network with provided truth table and expected outputs if the trainMode network configuration is 'true'
  * 4. Reports results by iterating over the truth table, comparing and outputting expected outputs
  *    against predictions for each input.
@@ -107,7 +108,7 @@ func main()
    setNetworkParameters()
    echoNetworkParameters()
    
-   arrays, truthTable, expectedOutputs = allocateNetworkMemory()
+   arrays, truthTable, expectedOutputs, testedOutputs = allocateNetworkMemory()
    populateNetworkMemory()
    
    if (parameters.trainMode)
@@ -115,6 +116,7 @@ func main()
       train(truthTable, expectedOutputs)
    }
    
+   testNetwork()
    reportResults()
 
    if (parameters.writeWeights)
@@ -211,6 +213,7 @@ func echoNetworkParameters()
  * - A NetworkArrays structure containing references to all allocated arrays and matrices used by the network.
  * - A truth table for network inputs as a slice of float64 slices.
  * - An output truth table as a slice of float64.
+ * - A ran outputs table as a slice of float64.
 
  * If the trainMode parameter is true, structures used exclusively for training (thetas, omegas, psis, dEdW, deltaWeights)
  * are allocated. This condition helps optimize memory usage by only allocating necessary arrays.
@@ -218,7 +221,7 @@ func echoNetworkParameters()
  * Limitations:
  * - Assumes that the global `parameters` structure is correctly initialized before this function is called.
  */
-func allocateNetworkMemory() (NetworkArrays, [][]float64, [][]float64)
+func allocateNetworkMemory() (NetworkArrays, [][]float64, [][]float64, [][]float64)
 {
    var k, j, input, output int
    
@@ -288,6 +291,12 @@ func allocateNetworkMemory() (NetworkArrays, [][]float64, [][]float64)
       outputTruthTable[output] = make([]float64, parameters.numOutputNodes)
    }
    
+   var ranOutputs [][]float64 = make([][]float64, parameters.numTestCases)
+   for output = range ranOutputs
+   {
+      ranOutputs[output] = make([]float64, parameters.numOutputNodes)
+   }
+   
    return NetworkArrays
    {
       a:                              &a,
@@ -305,8 +314,8 @@ func allocateNetworkMemory() (NetworkArrays, [][]float64, [][]float64)
       dEdWJI:                         &dEdWJI,
       inputHiddenDeltaWeights:        &inputHiddenDeltaWeights,
       hiddenOutputDeltaWeights:       &hiddenOutputDeltaWeights,
-   }, inputTruthTable, outputTruthTable
-} // func allocateNetworkMemory() NetworkArrays
+   }, inputTruthTable, outputTruthTable, ranOutputs
+} // func allocateNetworkMemory() (NetworkArrays, [][]float64, [][]float64, [][]float64)
 
 /**
  * The populateNetworkMemory function initializes the network's weight matrices and sets up the truth table and expected outputs
@@ -346,8 +355,7 @@ func populateNetworkMemory()
          }
       } // for j = range *arrays.hiddenOutputWeights
    } // if (parameters.weightInit == 1)
-
-   if (parameters.weightInit == 3)
+   else if (parameters.weightInit == 3)
    {
       (*arrays.inputHiddenWeights)[0][0] = 0.8
       (*arrays.inputHiddenWeights)[0][1] = 0.5
@@ -356,12 +364,11 @@ func populateNetworkMemory()
 
       (*arrays.hiddenOutputWeights)[0][0] = -0.5
       (*arrays.hiddenOutputWeights)[1][0] = 0.5
-   } // if (parameters.weightInit == 3)
-
-   if (parameters.weightInit == 4)
+   } // else if (parameters.weightInit == 3)
+   else if (parameters.weightInit == 4)
    {
       loadWeights()
-   } // if (parameters.weightInit == 4)
+   } // else if (parameters.weightInit == 4)
    
    truthTable[0][0] = 0.0
    truthTable[0][1] = 0.0
@@ -606,6 +613,28 @@ func train(inputs [][]float64, expectedOutputs [][]float64)
 } // func train(inputs [][]float64, expectedOutputs [][]float64)
 
 /**
+ * The testNetwork function runs the network for each input in the truth table, storing the network's predictions in the
+ * `testedOutputs` array. The function is used to test the network's performance after training.
+ *
+ * Limitations:
+ * - Assumes that the global `truthTable` and `expectedOutputs` arrays are correctly initialized and match in size.
+ */
+func testNetwork()
+{
+   var index, inner int
+   var input []float64
+   var num float64
+   
+   for index, input = range truthTable
+   {
+      for inner, num = range (run(input))
+      {
+         testedOutputs[index][inner] = num
+      }
+   } // for index, input = range truthTable
+} // func testNetwork()
+
+/**
  * The reportError function prints the current training error and the number of iterations to the console. The function is
  * used to report the training progress and the reason for stopping the training process. It is called after the training
  * process is completed.
@@ -637,7 +666,7 @@ func reportResults()
 
    for index, input = range truthTable
    {
-      fmt.Printf("Input: %v, Expected: %f, Predicted: %f\n", input, expectedOutputs[index], run(input))
+      fmt.Printf("Input: %v, Expected: %f, Predicted: %f\n", input, expectedOutputs[index], testedOutputs[index])
    }
 } // func reportResults()
 
@@ -909,7 +938,7 @@ func saveWeights()
          checkError(err)
       } // for i = 0; i < parameters.numOutputNodes; i++
    } // for j = 0; j < parameters.numHiddenNodes; j++
-}
+} // func saveWeights()
 
 /**
  * The loadWeights function reads the network's weights from a file. The function opens a file for reading and reads the
@@ -980,4 +1009,4 @@ func loadWeights()
          checkError(err)
       } // for i = 0; i < parameters.numOutputNodes; i++
    } // for j = 0; j < parameters.numHiddenNodes; j++
-}
+} // func loadWeights()

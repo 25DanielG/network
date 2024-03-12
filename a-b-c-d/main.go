@@ -44,6 +44,7 @@ const CONFIG_FROM_FILE bool = true
 
 const INPUT_OUTPUT_ACTIVATIONS int = 2
 
+
 type NetworkParameters struct
 {
    learningRate float64
@@ -85,6 +86,7 @@ var parameters NetworkParameters
 var arrays NetworkArrays
 var truthTable [][]float64
 var expectedOutputs [][]float64
+var testedOutputs [][]float64
 var numActivationArray []int
 
 var trainStart time.Time
@@ -130,7 +132,7 @@ func main()
 
    echoNetworkParameters()
    
-   arrays, truthTable, expectedOutputs = allocateNetworkMemory()
+   arrays, truthTable, expectedOutputs, testedOutputs = allocateNetworkMemory()
    populateNetworkMemory()
    
    if (parameters.trainMode)
@@ -138,6 +140,7 @@ func main()
       train(truthTable, expectedOutputs)
    }
    
+   testNetwork()
    reportResults()
 
    if (parameters.writeWeights)
@@ -309,6 +312,7 @@ func echoNetworkParameters()
  * - A NetworkArrays structure containing references to all allocated arrays and matrices used by the network.
  * - A truth table for network inputs as a slice of float64 slices.
  * - An output truth table as a slice of float64.
+ * - A ran outputs table as a slice of float64.
 
  * If the trainMode parameter is true, structures used exclusively for training (thetas, psis)
  * are allocated. This condition helps optimize memory usage by only allocating necessary arrays.
@@ -316,7 +320,7 @@ func echoNetworkParameters()
  * Limitations:
  * - Assumes that the global `parameters` structure is correctly initialized before this function is called.
  */
-func allocateNetworkMemory() (NetworkArrays, [][]float64, [][]float64)
+func allocateNetworkMemory() (NetworkArrays, [][]float64, [][]float64, [][]float64)
 {
    if (parameters.numHiddenLayers != 2)
    {
@@ -356,11 +360,11 @@ func allocateNetworkMemory() (NetworkArrays, [][]float64, [][]float64)
    
    if (parameters.trainMode)
    {
-      thetas = make([][]float64, networkDepth)
-      for alpha = 1; alpha < networkDepth; alpha++
+      thetas = make([][]float64, networkDepth - 1)
+      for alpha = 1; alpha < networkDepth - 1; alpha++
       {
          thetas[alpha] = make([]float64, numActivationArray[alpha])
-      } // for alpha = 1; alpha < networkDepth; alpha++
+      } // for alpha = 1; alpha < networkDepth - 1; alpha++
 
       psis = make([][]float64, networkDepth)
       for alpha = 1; alpha < networkDepth; alpha++
@@ -380,6 +384,12 @@ func allocateNetworkMemory() (NetworkArrays, [][]float64, [][]float64)
    {
       outputTruthTable[output] = make([]float64, parameters.numOutputNodes)
    } // for output = range outputTruthTable
+
+   var ranOutputs [][]float64 = make([][]float64, parameters.numTestCases)
+   for output = range ranOutputs
+   {
+      ranOutputs[output] = make([]float64, parameters.numOutputNodes)
+   } // for output = range ranOutputs
    
    return NetworkArrays
    {
@@ -387,8 +397,8 @@ func allocateNetworkMemory() (NetworkArrays, [][]float64, [][]float64)
       weights:                        &weights,
       thetas:                         &thetas,
       psis:                           &psis,
-   }, inputTruthTable, outputTruthTable
-} // func allocateNetworkMemory() NetworkArrays
+   }, inputTruthTable, outputTruthTable, ranOutputs
+} // func allocateNetworkMemory() (NetworkArrays, [][]float64, [][]float64, [][]float64)
 
 /**
  * The loadTestData function reads the test data from a file and populates the truth table and expected outputs for the network.
@@ -495,8 +505,7 @@ func populateNetworkMemory()
          } // for beta = 0; beta < numActivationArray[alpha]; beta++
       } // for alpha = 0; alpha < networkDepth - 1; alpha++
    } // if (parameters.weightInit == 1)
-
-   if (parameters.weightInit == 3)
+   else if (parameters.weightInit == 3)
    {
       (*arrays.weights)[0][0][0] = 0.8
       (*arrays.weights)[0][0][1] = 0.5
@@ -505,12 +514,16 @@ func populateNetworkMemory()
 
       (*arrays.weights)[1][0][0] = -0.5
       (*arrays.weights)[1][1][0] = 0.5
-   } // if (parameters.weightInit == 3)
+   } // else if (parameters.weightInit == 3)
+   else if (parameters.weightInit == 4)
+   {
+      loadWeights()
+   } // else if (parameters.weightInit == 4)
 
    if (parameters.externalTestData)
    {
       loadTestData()
-   }
+   } // if (parameters.externalTestData)
    else
    {
       truthTable[0][0] = 0.0
@@ -826,6 +839,28 @@ func train(inputs [][]float64, expectedOutputs [][]float64)
 } // func train(inputs [][]float64, expectedOutputs [][]float64)
 
 /**
+ * The testNetwork function runs the network for each input in the truth table, storing the network's predictions in the
+ * `testedOutputs` array. The function is used to test the network's performance after training.
+ *
+ * Limitations:
+ * - Assumes that the global `truthTable` and `expectedOutputs` arrays are correctly initialized and match in size.
+ */
+func testNetwork()
+{
+   var index, inner int
+   var input []float64
+   var num float64
+   
+   for index, input = range truthTable
+   {
+      for inner, num = range (run(input))
+      {
+         testedOutputs[index][inner] = num
+      }
+   } // for index, input = range truthTable
+} // func testNetwork()
+
+/**
  * The reportError function prints the current training error and the number of iterations to the console. The function is
  * used to report the training progress and the reason for stopping the training process. It is called after the training
  * process is completed.
@@ -857,7 +892,7 @@ func reportResults()
 
    for index, input = range truthTable
    {
-      fmt.Printf("Input: %v, Expected: %f, Predicted: %f\n", input, expectedOutputs[index], run(input))
+      fmt.Printf("Input: %v, Expected: %f, Predicted: %f\n", input, expectedOutputs[index], testedOutputs[index])
    }
 } // func reportResults()
 
@@ -946,7 +981,7 @@ func runTrain(activations *[][]float64, thetas *[][]float64, psis *[][]float64, 
               input *[]float64, outputs *[]float64)
 {
    var m, k, j, i int
-   var omegaI float64
+   var omegaI, thetaI float64
    
    for m = 0; m < parameters.numInputNodes; m++
    {
@@ -977,15 +1012,15 @@ func runTrain(activations *[][]float64, thetas *[][]float64, psis *[][]float64, 
    
    for i = 0; i < parameters.numOutputNodes; i++
    {
-      (*thetas)[outputLayer][i] = 0.0
+      thetaI = 0.0
       for j = 0; j < parameters.numDeepHiddenNodes; j++
       {
-         (*thetas)[outputLayer][i] += (*activations)[jLayer][j] * (*weights)[jLayer][j][i]
+         thetaI += (*activations)[jLayer][j] * (*weights)[jLayer][j][i]
       } // for j = 0; j < parameters.numDeepHiddenNodes; j++
 
-      (*activations)[outputLayer][i] = activationFunction((*thetas)[outputLayer][i])
+      (*activations)[outputLayer][i] = activationFunction(thetaI)
       omegaI = (*outputs)[i] - (*activations)[outputLayer][i]
-      (*psis)[outputLayer][i] = omegaI * activationPrime((*thetas)[outputLayer][i])
+      (*psis)[outputLayer][i] = omegaI * activationPrime(thetaI)
    } // for i = 0; i < parameters.numOutputNodes; i++
 } // func runTrain(activations *[][]float64...
 

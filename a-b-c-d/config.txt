@@ -7,7 +7,7 @@
 numHiddenLayers 2
 numInputNodes 2
 numShallowHiddenNodes 5
-numDeepHiddenNodes 100
+numDeepHiddenNodes 10
 numOutputNodes 3
 
 | TRAIN PARAMETERS |

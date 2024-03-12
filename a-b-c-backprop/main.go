@@ -85,6 +85,7 @@ var parameters NetworkParameters
 var arrays NetworkArrays
 var truthTable [][]float64
 var expectedOutputs [][]float64
+var testedOutputs [][]float64
 
 var trainStart time.Time
 var done bool
@@ -126,7 +127,7 @@ func main()
 
    echoNetworkParameters()
    
-   arrays, truthTable, expectedOutputs = allocateNetworkMemory()
+   arrays, truthTable, expectedOutputs, testedOutputs = allocateNetworkMemory()
    populateNetworkMemory()
    
    if (parameters.trainMode)
@@ -134,6 +135,7 @@ func main()
       train(truthTable, expectedOutputs)
    }
    
+   testNetwork()
    reportResults()
 
    if (parameters.writeWeights)
@@ -303,6 +305,7 @@ func echoNetworkParameters()
  * - A NetworkArrays structure containing references to all allocated arrays and matrices used by the network.
  * - A truth table for network inputs as a slice of float64 slices.
  * - An output truth table as a slice of float64.
+ * - A ran outputs table as a slice of float64.
 
  * If the trainMode parameter is true, structures used exclusively for training (thetas, omegas, psis)
  * are allocated. This condition helps optimize memory usage by only allocating necessary arrays.
@@ -310,7 +313,7 @@ func echoNetworkParameters()
  * Limitations:
  * - Assumes that the global `parameters` structure is correctly initialized before this function is called.
  */
-func allocateNetworkMemory() (NetworkArrays, [][]float64, [][]float64)
+func allocateNetworkMemory() (NetworkArrays, [][]float64, [][]float64, [][]float64)
 {
    var k, j, input, output int
    
@@ -350,6 +353,12 @@ func allocateNetworkMemory() (NetworkArrays, [][]float64, [][]float64)
    {
       outputTruthTable[output] = make([]float64, parameters.numOutputNodes)
    }
+
+   var ranOutputs [][]float64 = make([][]float64, parameters.numTestCases)
+   for output = range ranOutputs
+   {
+      ranOutputs[output] = make([]float64, parameters.numOutputNodes)
+   } // for output = range ranOutputs
    
    return NetworkArrays
    {
@@ -360,8 +369,8 @@ func allocateNetworkMemory() (NetworkArrays, [][]float64, [][]float64)
       F:                              &F,
       thetaJ:                         &thetaJ,
       psiI:                           &psiI,
-   }, inputTruthTable, outputTruthTable
-} // func allocateNetworkMemory() NetworkArrays
+   }, inputTruthTable, outputTruthTable, ranOutputs
+} // func allocateNetworkMemory() (NetworkArrays, [][]float64, [][]float64 [][]float64)
 
 /**
  * The loadTestData function reads the test data from a file and populates the truth table and expected outputs for the network.
@@ -473,8 +482,7 @@ func populateNetworkMemory()
          }
       } // for j = range *arrays.hiddenOutputWeights
    } // if (parameters.weightInit == 1)
-
-   if (parameters.weightInit == 3)
+   else if (parameters.weightInit == 3)
    {
       (*arrays.inputHiddenWeights)[0][0] = 0.8
       (*arrays.inputHiddenWeights)[0][1] = 0.5
@@ -483,17 +491,16 @@ func populateNetworkMemory()
 
       (*arrays.hiddenOutputWeights)[0][0] = -0.5
       (*arrays.hiddenOutputWeights)[1][0] = 0.5
-   } // if (parameters.weightInit == 3)
-
-   if (parameters.weightInit == 4)
+   } // else if (parameters.weightInit == 3)
+   else if (parameters.weightInit == 4)
    {
       loadWeights()
-   } // if (parameters.weightInit == 4)
+   } // else if (parameters.weightInit == 4)
    
    if (parameters.externalTestData)
    {
       loadTestData()
-   }
+   } // if (parameters.externalTestData)
    else
    {
       truthTable[0][0] = 0.0
@@ -804,6 +811,28 @@ func train(inputs [][]float64, expectedOutputs [][]float64)
 } // func train(inputs [][]float64, expectedOutputs [][]float64)
 
 /**
+ * The testNetwork function runs the network for each input in the truth table, storing the network's predictions in the
+ * `testedOutputs` array. The function is used to test the network's performance after training.
+ *
+ * Limitations:
+ * - Assumes that the global `truthTable` and `expectedOutputs` arrays are correctly initialized and match in size.
+ */
+func testNetwork()
+{
+   var index, inner int
+   var input []float64
+   var num float64
+   
+   for index, input = range truthTable
+   {
+      for inner, num = range (run(input))
+      {
+         testedOutputs[index][inner] = num
+      }
+   } // for index, input = range truthTable
+} // func testNetwork()
+
+/**
  * The reportError function prints the current training error and the number of iterations to the console. The function is
  * used to report the training progress and the reason for stopping the training process. It is called after the training
  * process is completed.
@@ -835,7 +864,7 @@ func reportResults()
 
    for index, input = range truthTable
    {
-      fmt.Printf("Input: %v, Expected: %f, Predicted: %f\n", input, expectedOutputs[index], run(input))
+      fmt.Printf("Input: %v, Expected: %f, Predicted: %f\n", input, expectedOutputs[index], testedOutputs[index])
    }
 } // func reportResults()
 
