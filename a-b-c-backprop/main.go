@@ -40,6 +40,12 @@ const MINUTES_IN_HOUR float64 = 60.0
 const HOURS_IN_DAY float64 = 24.0
 const DAYS_IN_WEEK float64 = 7.0
 
+const NUM_BITS_IN_FLOAT64 int = 64
+
+const RANDOM_WEIGHTS int = 1
+const MANUAL_WEIGHTS int = 3
+const LOAD_WEIGHTS int = 4
+
 const CONFIG_FILE string = "config.txt"
 const CONFIG_FROM_FILE bool = true
 
@@ -267,8 +273,8 @@ func setNetworkParameters()
  * - Test data source indicator (true for external test data).
  * - Weight initialization method, where "1" denotes random initialization and "2" denotes initialization to zero, 3 denotes
  * -    manual initialization, and 4 denotes loading from a file.
- * - Range for random weight initialization, specifying lower and upper bounds.
  * - Keep alive and save weights every N iterations.
+ * - Range for random weight initialization, specifying lower and upper bounds.
  *
  * Limitations:
  * - This function depends on the global `parameters` structure being set by setNetworkParameters() and not by passed arguments.
@@ -358,7 +364,7 @@ func allocateNetworkMemory() (NetworkArrays, [][]float64, [][]float64, [][]float
    for output = range ranOutputs
    {
       ranOutputs[output] = make([]float64, parameters.numOutputNodes)
-   } // for output = range ranOutputs
+   }
    
    return NetworkArrays
    {
@@ -428,13 +434,17 @@ func loadTestData()
       {
          for k = 0; k < parameters.numInputNodes; k++
          {
-            truthTable[test][k], _ = strconv.ParseFloat(parts[k], 64)
+            truthTable[test][k], _ = strconv.ParseFloat(parts[k], NUM_BITS_IN_FLOAT64)
          }
          for i = 0; i < parameters.numOutputNodes; i++
          {
-            expectedOutputs[test][i], _ = strconv.ParseFloat(parts[i + parameters.numInputNodes + 1], 64)
+            expectedOutputs[test][i], _ = strconv.ParseFloat(parts[i + parameters.numInputNodes + 1], NUM_BITS_IN_FLOAT64)
          }
       } // if (len(parts) == parameters.numInputNodes + parameters.numOutputNodes + 1)
+      else
+      {
+         panic("Test data file is not formatted correctly!")
+      } // else
       test++
    } // for (scanner.Scan() && test < parameters.numTestCases)
 
@@ -463,7 +473,7 @@ func populateNetworkMemory()
 {
    var k, j, i int
    
-   if (parameters.weightInit == 1)
+   if (parameters.weightInit == RANDOM_WEIGHTS)
    {
       rand.Seed(time.Now().UnixNano())
       for k = range *arrays.inputHiddenWeights
@@ -481,8 +491,8 @@ func populateNetworkMemory()
             (*arrays.hiddenOutputWeights)[j][i] = randomNumber(parameters.weightLowerBound, parameters.weightUpperBound)
          }
       } // for j = range *arrays.hiddenOutputWeights
-   } // if (parameters.weightInit == 1)
-   else if (parameters.weightInit == 3)
+   } // if (parameters.weightInit == RANDOM_WEIGHTS)
+   else if (parameters.weightInit == MANUAL_WEIGHTS)
    {
       (*arrays.inputHiddenWeights)[0][0] = 0.8
       (*arrays.inputHiddenWeights)[0][1] = 0.5
@@ -491,11 +501,11 @@ func populateNetworkMemory()
 
       (*arrays.hiddenOutputWeights)[0][0] = -0.5
       (*arrays.hiddenOutputWeights)[1][0] = 0.5
-   } // else if (parameters.weightInit == 3)
-   else if (parameters.weightInit == 4)
+   } // else if (parameters.weightInit == MANUAL_WEIGHTS)
+   else if (parameters.weightInit == LOAD_WEIGHTS)
    {
       loadWeights()
-   } // else if (parameters.weightInit == 4)
+   } // else if (parameters.weightInit == LOAD_WEIGHTS)
    
    if (parameters.externalTestData)
    {
@@ -531,7 +541,7 @@ func populateNetworkMemory()
       expectedOutputs[3][0] = 1.0
       expectedOutputs[3][1] = 1.0
       expectedOutputs[3][2] = 0.0
-   } // if (parameters.externalTestData)
+   } // else
 
    assignActivationFunction()
    assignActivationPrime()
@@ -784,10 +794,9 @@ func train(inputs [][]float64, expectedOutputs [][]float64)
          for i = range run(inputs[input])
          {
             omegaI = expectedOutputs[input][i] - F[i]
-            inputError += omegaI * omegaI
+            inputError += 0.5 * omegaI * omegaI
          } // for i = range run(inputs[input])
 
-         inputError /= 2.0
          epochError += inputError
       } // for input = 0; input < parameters.numTestCases; input++
 

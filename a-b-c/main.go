@@ -34,6 +34,8 @@ const MINUTES_IN_HOUR float64 = 60.0
 const HOURS_IN_DAY float64 = 24.0
 const DAYS_IN_WEEK float64 = 7.0
 
+const READ_WRITE_PERMISSION int = 0644
+
 type NetworkParameters struct
 {
    learningRate float64
@@ -906,7 +908,7 @@ func saveWeights()
       checkError(err)
    }
 
-   file, err = os.OpenFile(parameters.fileName, os.O_WRONLY, 0644) // open the file
+   file, err = os.OpenFile(parameters.fileName, os.O_WRONLY, READ_WRITE_PERMISSION) // open the file
    checkError(err)
 
    defer file.Close()

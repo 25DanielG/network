@@ -17,7 +17,7 @@ activationFunction sigmoid
 // 1 Random, 2 Zero, 3 Manual, 4 Load from file
 weightInit 1
 
-writeWeights true
+writeWeights 2
 fileName weights.txt
 
 weightLowerBound 0.1

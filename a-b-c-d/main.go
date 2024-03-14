@@ -39,10 +39,13 @@ const MINUTES_IN_HOUR float64 = 60.0
 const HOURS_IN_DAY float64 = 24.0
 const DAYS_IN_WEEK float64 = 7.0
 
+const NUM_BITS_IN_FLOAT64 int = 64
+
 const CONFIG_FILE string = "config.txt"
 const CONFIG_FROM_FILE bool = true
 
 const INPUT_OUTPUT_ACTIVATIONS int = 2
+const TWO_HIDDEN_LAYERS int = 2
 
 
 type NetworkParameters struct
@@ -275,6 +278,7 @@ func setNetworkParameters()
  * - Test data source indicator (true for external test data).
  * - Weight initialization method, where "1" denotes random initialization and "2" denotes initialization to zero, 3 denotes
  * -    manual initialization, and 4 denotes loading from a file.
+ * - Keep alive and save weights every N iterations.
  * - Range for random weight initialization, specifying lower and upper bounds.
  *
  * Limitations:
@@ -299,6 +303,7 @@ func echoNetworkParameters()
    fmt.Printf("Train Mode: %t\n", parameters.trainMode)
    fmt.Printf("Weight Init: %d -- 1 = random, 2 = zero, 3 = manual, 4 = load from file\n", parameters.weightInit)
    fmt.Printf("Test Data: %t -- true = external, 2 = internal\n", parameters.externalTestData)
+   fmt.Printf("Keep Alive Every: %d, Save Weights Every: %d\n", parameters.keepAliveEvery, parameters.weightSaveEvery)
    fmt.Printf("Random Range [%v, %v]\n\n", parameters.weightLowerBound, parameters.weightUpperBound)
 } // func echoNetworkParameters()
 
@@ -322,7 +327,7 @@ func echoNetworkParameters()
  */
 func allocateNetworkMemory() (NetworkArrays, [][]float64, [][]float64, [][]float64)
 {
-   if (parameters.numHiddenLayers != 2)
+   if (parameters.numHiddenLayers != TWO_HIDDEN_LAYERS)
    {
       panic("2 hidden layers are only supported!")
    } // if (parameters.numHiddenLayers != 2)
@@ -426,7 +431,7 @@ func loadTestData()
    var err error
    var fileExists bool = false
    var testLine string
-   var test, k, i int
+   var test, m, i int
 
    _, err = os.Stat(parameters.testDataFile)
    if (err == nil)
@@ -454,15 +459,19 @@ func loadTestData()
       parts := strings.Fields(testLine)
       if (len(parts) == parameters.numInputNodes + parameters.numOutputNodes + 1)
       {
-         for k = 0; k < parameters.numInputNodes; k++
+         for m = 0; m < parameters.numInputNodes; m++
          {
-            truthTable[test][k], _ = strconv.ParseFloat(parts[k], 64)
+            truthTable[test][m], _ = strconv.ParseFloat(parts[m], NUM_BITS_IN_FLOAT64)
          }
          for i = 0; i < parameters.numOutputNodes; i++
          {
-            expectedOutputs[test][i], _ = strconv.ParseFloat(parts[i + parameters.numInputNodes + 1], 64)
+            expectedOutputs[test][i], _ = strconv.ParseFloat(parts[i + parameters.numInputNodes + 1], NUM_BITS_IN_FLOAT64)
          }
       } // if (len(parts) == parameters.numInputNodes + parameters.numOutputNodes + 1)
+      else
+      {
+         panic("Test data file is not formatted correctly!")
+      } // else
       test++
    } // for (scanner.Scan() && test < parameters.numTestCases)
 
@@ -812,10 +821,9 @@ func train(inputs [][]float64, expectedOutputs [][]float64)
          for i = range run(inputs[input])
          {
             omegaI = expectedOutputs[input][i] - activations[outputLayer][i]
-            inputError += omegaI * omegaI
+            inputError += 0.5 * omegaI * omegaI
          } // for i = range run(inputs[input])
 
-         inputError /= 2.0
          epochError += inputError
       } // for input = 0; input < parameters.numTestCases; input++
 
