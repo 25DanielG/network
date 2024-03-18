@@ -432,6 +432,7 @@ func loadTestData()
    var fileExists bool = false
    var testLine string
    var test, m, i int
+   var parts []string
 
    _, err = os.Stat(parameters.testDataFile)
    if (err == nil)
@@ -456,7 +457,7 @@ func loadTestData()
    for (scanner.Scan() && test < parameters.numTestCases)
    {
       testLine = scanner.Text()
-      parts := strings.Fields(testLine)
+      parts = strings.Fields(testLine)
       if (len(parts) == parameters.numInputNodes + parameters.numOutputNodes + 1)
       {
          for m = 0; m < parameters.numInputNodes; m++

@@ -62,7 +62,7 @@ type NetworkParameters struct
    testDataFile     string
    
    trainMode          bool
-   weightInit         int // 1 is randomize, 2 is zero, 3 is manual, 4 is load from file
+   weightInit         int    // 1 is randomize, 2 is zero, 3 is manual, 4 is load from file
    writeWeights       bool
    fileName           string
    activationFunction string // sigmoid, tanh, linear
@@ -405,6 +405,7 @@ func loadTestData()
    var fileExists bool = false
    var testLine string
    var test, k, i int
+   var parts []string
 
    _, err = os.Stat(parameters.testDataFile)
    if (err == nil)
@@ -429,7 +430,8 @@ func loadTestData()
    for (scanner.Scan() && test < parameters.numTestCases)
    {
       testLine = scanner.Text()
-      parts := strings.Fields(testLine)
+      parts = strings.Fields(testLine)
+
       if (len(parts) == parameters.numInputNodes + parameters.numOutputNodes + 1)
       {
          for k = 0; k < parameters.numInputNodes; k++
