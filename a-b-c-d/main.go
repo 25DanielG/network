@@ -13,7 +13,7 @@
  * create, allocate, and populate the A-B-C-D neural network. The training algorithm utilizes gradient descent to minimize the
  * error function. The network also uses backpropagation to update the weights efficiently.
  * @author Daniel Gergov
- * @creation 3/1/24
+ * @creation 3/19/24
  */
 
 package main
@@ -103,7 +103,7 @@ var executionTime float64
 
 var configFile string
 
-var networkDepth int // input + hidden layers + output
+var networkDepth int                        // input + hidden layers + output
 var mLayer, kLayer, jLayer, outputLayer int // layer index
 
 var activationFunction func(float64) float64
