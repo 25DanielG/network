@@ -5,8 +5,8 @@
 | LAYER PARAMETERS |
 
 numInputNodes 2
-numHiddenNodes 17
-numOutputNodes 3
+numHiddenNodes 20
+numOutputNodes 1
 
 | TRAIN PARAMETERS |
 
@@ -20,7 +20,7 @@ weightInit 1
 writeWeights true
 fileName weights.txt
 
-weightLowerBound 0.1
+weightLowerBound -1.5
 weightUpperBound 1.5
 errorThreshold 2e-4
 maxIterations 100000
@@ -31,4 +31,4 @@ keepAliveEvery 100000
 
 numTestCases 4
 externalTestData true
-testDataFile dataALL.txt
+testDataFile dataXOR.txt

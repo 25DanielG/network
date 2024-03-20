@@ -40,8 +40,10 @@ const HOURS_IN_DAY float64 = 24.0
 const DAYS_IN_WEEK float64 = 7.0
 
 const NUM_BITS_IN_FLOAT64 int = 64
+const TWO_SHELL_ARGUMENTS int = 2
+const VARIABLE_VALUE_PAIR int = 2 // constant to define the number 2
 
-const CONFIG_FILE string = "config.txt"
+const DEFAULT_CONFIG_FILE string = "config.txt"
 const CONFIG_FROM_FILE bool = true
 
 const INPUT_OUTPUT_ACTIVATIONS int = 2
@@ -63,7 +65,7 @@ type NetworkParameters struct
    testDataFile     string
    
    trainMode          bool
-   weightInit         int // 1 is randomize, 2 is zero, 3 is manual, 4 is load from file
+   weightInit         int    // 1 is randomize, 2 is zero, 3 is manual, 4 is load from file
    writeWeights       bool
    fileName           string
    activationFunction string // sigmoid, tanh, linear
@@ -99,6 +101,8 @@ var inputError float64
 var epoch int
 var executionTime float64
 
+var configFile string
+
 var networkDepth int // input + hidden layers + output
 var mLayer, kLayer, jLayer, outputLayer int // layer index
 
@@ -108,8 +112,8 @@ var activationPrime func(float64) float64
 /**
  * The main function initiates network parameter configuration, memory allocation for network operations, and executes
  * network training and testing. It follows these steps:
- * 1. Sets and displays network parameters. Calls `setNetworkParameters` or `loadNetworkParameters` based on the
- *    `CONFIG_FROM_FILE` constant.
+ * 1. Grabs the specified config file from the terminal arguments, otherwise defaults to another config file. Sets and displays
+ *    network parameters. Calls `setNetworkParameters` or `loadNetworkParameters` based on the `CONFIG_FROM_FILE` constant.
  * 2. Allocates and populates network memory for arrays, truth table, and expected outputs.
  * 3. Trains the network with provided truth table and expected outputs if the trainMode network configuration is 'true'
  * 4. Reports results by iterating over the truth table, comparing and outputting expected outputs
@@ -124,6 +128,10 @@ var activationPrime func(float64) float64
  */
 func main()
 {
+   configFile = DEFAULT_CONFIG_FILE // assign default config file
+
+   getConfigFile()
+
    if (CONFIG_FROM_FILE)
    {
       loadNetworkParameters()
@@ -153,6 +161,28 @@ func main()
 } // func main()
 
 /**
+ * The `getConfigFile` function checks if a configuration file is provided as an argument to the program. If no file is provided,
+ * the function sets the default configuration file name. The function is called at the beginning of the main function.
+ *
+ * Process:
+ * 1. The function checks if the number of arguments is less than 2. If so, the function sets the default configuration file
+ *    name and prints a message to the console.
+ * 2. If the number of arguments is 2 or more, the function sets the configuration file name to the second argument.
+ *
+ */
+func getConfigFile()
+{
+   if (len(os.Args) < TWO_SHELL_ARGUMENTS)
+   {
+      fmt.Printf("No config file provided. Defaulting to: %s.\nUsage: ./main.go <filename>\n", configFile)
+   } // if (len(os.Args) < TWO_SHELL_ARGUMENTS)
+   else
+   {
+      configFile = os.Args[TWO_SHELL_ARGUMENTS - 1]
+   } // else
+} // func getConfigFile()
+
+/**
  * The loadNetworkParameters function reads the network configuration parameters from a file and sets the global `parameters`
  * structure accordingly. It then sets the corresponding parameter in the `parameters` structure.
  *
@@ -175,7 +205,7 @@ func loadNetworkParameters()
    var err error
    var fileExists bool = false
 
-   _, err = os.Stat(CONFIG_FILE)
+   _, err = os.Stat(configFile)
    if (err == nil)
    {
       fileExists = true
@@ -186,7 +216,7 @@ func loadNetworkParameters()
       panic("Configuration file does not exist!")
    }
 
-   customConfiguration(CONFIG_FILE)
+   customConfiguration(configFile)
 
    parameters.learningRate = viper.GetFloat64("learningRate")
    parameters.numHiddenLayers = viper.GetInt("numHiddenLayers")
@@ -901,7 +931,7 @@ func reportResults()
 
    for index, input = range truthTable
    {
-      fmt.Printf("Input: %v, Expected: %f, Predicted: %f\n", input, expectedOutputs[index], testedOutputs[index])
+      fmt.Printf("Input: %v, Expected: %f, Predicted: %.17f\n", input, expectedOutputs[index], testedOutputs[index])
    }
 } // func reportResults()
 
@@ -1183,7 +1213,7 @@ func saveWeights()
    {
       for k = 0; k < parameters.numShallowHiddenNodes; k++
       {
-         _, err = file.WriteString(fmt.Sprintf("%f\n", (*arrays.weights)[mLayer][m][k]))
+         _, err = file.WriteString(fmt.Sprintf("%.17f\n", (*arrays.weights)[mLayer][m][k]))
          checkError(err)
       } // for k = 0; k < parameters.numShallowHiddenNodes; k++
    } // for m = 0; m < parameters.numInputNodes; m++
@@ -1195,7 +1225,7 @@ func saveWeights()
    {
       for j = 0; j < parameters.numDeepHiddenNodes; j++
       {
-         _, err = file.WriteString(fmt.Sprintf("%f\n", (*arrays.weights)[kLayer][k][j]))
+         _, err = file.WriteString(fmt.Sprintf("%.17f\n", (*arrays.weights)[kLayer][k][j]))
          checkError(err)
       } // for j = 0; j < parameters.numDeepHiddenNodes; j++
    } // for k = 0; k < parameters.numShallowHiddenNodes; k++
@@ -1207,7 +1237,7 @@ func saveWeights()
    {
       for i = 0; i < parameters.numOutputNodes; i++
       {
-         _, err = file.WriteString(fmt.Sprintf("%f\n", (*arrays.weights)[jLayer][j][i]))
+         _, err = file.WriteString(fmt.Sprintf("%.17f\n", (*arrays.weights)[jLayer][j][i]))
          checkError(err)
       } // for j = 0; j < parameters.numDeepHiddenNodes; j++
    } // for i = 0; i < parameters.numOutputNodes; i++

@@ -33,4 +33,4 @@ keepAliveEvery 100000
 
 numTestCases 4
 externalTestData true
-testDataFile data.txt
+testDataFile dataAll.txt

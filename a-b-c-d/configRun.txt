@@ -4,18 +4,20 @@
 
 | LAYER PARAMETERS |
 
+numHiddenLayers 2
 numInputNodes 2
-numHiddenNodes 17
+numShallowHiddenNodes 5
+numDeepHiddenNodes 10
 numOutputNodes 3
 
 | TRAIN PARAMETERS |
 
-trainMode true
+trainMode false
 learningRate 0.3
 activationFunction sigmoid
 
 // 1 Random, 2 Zero, 3 Manual, 4 Load from file
-weightInit 1
+weightInit 4
 
 writeWeights true
 fileName weights.txt
