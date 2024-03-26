@@ -14,6 +14,37 @@
  * error function. The network also uses backpropagation to update the weights efficiently.
  * @author Daniel Gergov
  * @creation 3/19/24
+ *
+ * @tableofcontents
+ * 1. main
+ * 2. getConfigFile
+ * 3. loadNetworkParameters
+ * 4. setNetworkParameters
+ * 5. echoNetworkParameters
+ * 6. allocateNetworkMemory
+ * 7. loadTestData
+ * 8. populateNetworkMemory
+ * 9. randomNumber
+ * 10. sigmoid
+ * 11. sigmoidDerivative
+ * 12. tanh
+ * 13. tanhDerivative
+ * 14. relu
+ * 15. reluDerivative
+ * 16. linear
+ * 17. linearDerivative
+ * 18. assignActivationFunction
+ * 19. assignActivationPrime
+ * 20. train
+ * 21. testNetwork
+ * 22. reportResults
+ * 23. run
+ * 24. runTrain
+ * 25. formatTime
+ * 26. checkError
+ * 27. loadWeights
+ * 28. saveWeights
+ * 29. customConfiguration
  */
 
 package main
@@ -43,6 +74,11 @@ const NUM_BITS_IN_FLOAT64 int = 64
 const TWO_SHELL_ARGUMENTS int = 2
 const VARIABLE_VALUE_PAIR int = 2 // constant to define the number 2
 
+const RANDOM_WEIGHTS int = 1
+const MANUAL_WEIGHTS int = 3
+const LOAD_WEIGHTS int = 4
+const XAVIER_WEIGHTS int = 5
+
 const DEFAULT_CONFIG_FILE string = "config.txt"
 const CONFIG_FROM_FILE bool = true
 
@@ -68,7 +104,7 @@ type NetworkParameters struct
    weightInit         int    // 1 is randomize, 2 is zero, 3 is manual, 4 is load from file
    writeWeights       bool
    fileName           string
-   activationFunction string // sigmoid, tanh, linear
+   activationFunction string // sigmoid, tanh, linear, relu
    
    weightLowerBound float64
    weightUpperBound float64
@@ -254,7 +290,8 @@ func loadNetworkParameters()
  * - testDataFile: The name of the file containing the test data.
  * - trainMode: Boolean indicating if the network is in training mode.
  * - activationFunction: The activation function to be used by the network.
- * - weightInit: Method or value for weight initialization; 1 being random, 2 being zeroes, 3 being manual, 4 being load from file.
+ * - weightInit: Method or value for weight initialization; 1 being random, 2 being zeroes, 3 being manual, 4 being load from file,
+ *               and 5 being Xavier initialization.
  * - weightLowerBound, weightUpperBound: Define the range of values for initializing the network weights to random values.
  * - errorThreshold: The error level at which training is considered sufficiently complete.
  * - maxIterations: Limits the number of training iterations.
@@ -307,7 +344,7 @@ func setNetworkParameters()
  * - Training mode indicator (true for training mode).
  * - Test data source indicator (true for external test data).
  * - Weight initialization method, where "1" denotes random initialization and "2" denotes initialization to zero, 3 denotes
- * -    manual initialization, and 4 denotes loading from a file.
+ * -    manual initialization, 4 denotes loading from a file, and 5 denotes Xavier initialization.
  * - Keep alive and save weights every N iterations.
  * - Range for random weight initialization, specifying lower and upper bounds.
  *
@@ -331,7 +368,7 @@ func echoNetworkParameters()
 
    fmt.Printf("Activation Function: %s\n", parameters.activationFunction)
    fmt.Printf("Train Mode: %t\n", parameters.trainMode)
-   fmt.Printf("Weight Init: %d -- 1 = random, 2 = zero, 3 = manual, 4 = load from file\n", parameters.weightInit)
+   fmt.Printf("Weight Init: %d -- 1 = random, 2 = zero, 3 = manual, 4 = load from file, 5 = xavier \n", parameters.weightInit)
    fmt.Printf("Test Data: %t -- true = external, 2 = internal\n", parameters.externalTestData)
    fmt.Printf("Keep Alive Every: %d, Save Weights Every: %d\n", parameters.keepAliveEvery, parameters.weightSaveEvery)
    fmt.Printf("Random Range [%v, %v]\n\n", parameters.weightLowerBound, parameters.weightUpperBound)
@@ -360,7 +397,7 @@ func allocateNetworkMemory() (NetworkArrays, [][]float64, [][]float64, [][]float
    if (parameters.numHiddenLayers != TWO_HIDDEN_LAYERS)
    {
       panic("2 hidden layers are only supported!")
-   } // if (parameters.numHiddenLayers != 2)
+   } // if (parameters.numHiddenLayers != TWO_HIDDEN_LAYERS)
 
    var alpha, beta, input, output int
    
@@ -516,13 +553,15 @@ func loadTestData()
  * The populateNetworkMemory function initializes the network's weight matrices and sets up the truth table and expected outputs
  * for training or evaluation. It follows these steps:
  *
- * 1. If the weight initialization mode is set to random (weightInit == 1), it initializes the input-hidden and hidden-output
- * weight matrices with random values within the bounds (weightLowerBound to weightUpperBound).
+ * 1. If the weight initialization mode is set to random (weightInit == 1), it initializes the weights matrices with random values
+ *    within the bounds (weightLowerBound to weightUpperBound).
  * 2. If the weight initialization mode is set to manual (weightInit == 3), it initializes the input-hidden and hidden-output
  *    weight matrices with predefined values for a 2-2-1 network.
  * 3. If the weight initialization mode is set to load from file (weightInit == 4), it loads the weights from a file.
- * 4. Populates the truth table with predefined inputs.
- * 5. Sets the expected outputs corresponding to the truth table inputs to a binary operation either XOR, OR, or AND.
+ * 4. If the weight initialization mode is set to xavier intialization (weightInit == 5), it initializes the weight matrices
+ *    using the Xavier initialization method.
+ * 5. Populates the truth table with predefined inputs.
+ * 6. Sets the expected outputs corresponding to the truth table inputs to a binary operation either XOR, OR, or AND.
  *
  * Limitations:
  * - Assumes `arrays`, `truthTable`, and `expectedOutputs` are globally accessible and correctly linked to the network's structure.
@@ -531,7 +570,7 @@ func populateNetworkMemory()
 {
    var alpha, beta, betaNought int
    
-   if (parameters.weightInit == 1)
+   if (parameters.weightInit == RANDOM_WEIGHTS)
    {
       rand.Seed(time.Now().UnixNano())
       for alpha = 0; alpha < networkDepth - 1; alpha++
@@ -544,8 +583,8 @@ func populateNetworkMemory()
             } // for betaNought = 0; betaNought < numActivationArray[alpha + 1]; betaNought++
          } // for beta = 0; beta < numActivationArray[alpha]; beta++
       } // for alpha = 0; alpha < networkDepth - 1; alpha++
-   } // if (parameters.weightInit == 1)
-   else if (parameters.weightInit == 3)
+   } // if (parameters.weightInit == RANDOM_WEIGHTS)
+   else if (parameters.weightInit == MANUAL_WEIGHTS)
    {
       (*arrays.weights)[0][0][0] = 0.8
       (*arrays.weights)[0][0][1] = 0.5
@@ -554,11 +593,31 @@ func populateNetworkMemory()
 
       (*arrays.weights)[1][0][0] = -0.5
       (*arrays.weights)[1][1][0] = 0.5
-   } // else if (parameters.weightInit == 3)
-   else if (parameters.weightInit == 4)
+   } // else if (parameters.weightInit == MANUAL_WEIGHTS)
+   else if (parameters.weightInit == LOAD_WEIGHTS)
    {
       loadWeights()
-   } // else if (parameters.weightInit == 4)
+   } // else if (parameters.weightInit == LOAD_WEIGHTS)
+   else if (parameters.weightInit == XAVIER_WEIGHTS)
+   {
+      for alpha = 0; alpha < networkDepth - 1; alpha++
+      {
+         var nIn int = numActivationArray[alpha]
+         var nOut int = numActivationArray[alpha + 1]
+
+         var distribution float64 = math.Sqrt(6.0 / float64(nIn + nOut))
+         var lowBound float64 = -distribution
+         var highBound float64 = distribution
+
+         for beta = 0; beta < numActivationArray[alpha]; beta++
+         {
+            for betaNought = 0; betaNought < numActivationArray[alpha + 1]; betaNought++
+            {
+               (*arrays.weights)[alpha][beta][betaNought] = randomNumber(lowBound, highBound)
+            } // for betaNought = 0; betaNought < numActivationArray[alpha + 1]; betaNought++
+         } // for beta = 0; beta < numActivationArray[alpha]; beta++
+      } // for alpha = 0; alpha < networkDepth - 1; alpha++
+   } // else if (parameters.weightInit == XAVIER_WEIGHTS)
 
    if (parameters.externalTestData)
    {
@@ -671,7 +730,7 @@ func tanh(x float64) float64
  * The derivative is used the calculation for the delta weights through computing the psi variables. The function first
  * calculates the tanh of `x`, then applies the derivative formula of the tanh function.
  *
- * The derivative of the tanh function S(x) is given by:
+ * The derivative of the tanh function T(x) is given by:
  * T'(x) = 1 - (T(x) - T(x))
  * where T(x) is the tanh of `x`.
  *
@@ -685,6 +744,50 @@ func tanhDerivative(x float64) float64
 {
    x = tanh(x)
    return 1.0 - (x * x)
+}
+
+/**
+ * The RELU function calculates the relu activation of a given input value `x`. The relu activation function
+ * introduces non-linearity into a model.
+ *
+ * The relu of `x` follows the formula:
+ * relu(x) = max(0, x)
+ *
+ * Parameters:
+ * - x: The input value for which to apply relu formula.
+ *
+ * Returns:
+ * - The relu activation of `x`, a float64 value in the range [0, x).
+ */
+func relu(x float64) float64
+{
+   return math.Max(0, x)
+}
+ 
+/**
+ * The reluDerivative function computes the derivative of the relu activation function for a given input value `x`.
+ * The derivative is used the calculation for the delta weights through computing the psi variables.
+ *
+ * The derivative of the relu function is given by:
+ * 1 if x >= 0
+ * 0 if x < 0
+ *
+ * Parameters:
+ * - x: The input value for which to apply the relu derivative formula.
+ *
+ * Returns:
+ * - The derivative of the relu function of `x`, a float64 value either 0 or 1.
+ */
+func reluDerivative(x float64) float64
+{
+   if (x >= 0.0)
+   {
+      return 1.0
+   }
+   else
+   {
+      return 0.0
+   }
 }
 
 /**
@@ -732,18 +835,19 @@ func assignActivationFunction()
    if (parameters.activationFunction == "sigmoid")
    {
       activationFunction = sigmoid
-   }
+   } // if (parameters.activationFunction == "sigmoid")
+   else if (parameters.activationFunction == "tanh")
+   {
+      activationFunction = tanh
+   } // else if (parameters.activationFunction == "tanh")
+   else if (parameters.activationFunction == "relu")
+   {
+      activationFunction = relu
+   } // else if (parameters.activationFunction == "relu")
    else
    {
-      if (parameters.activationFunction == "tanh")
-      {
-         activationFunction = tanh
-      }
-      else
-      {
-         activationFunction = linear
-      }
-   } // if (parameters.activationFunction == "sigmoid")
+      activationFunction = linear
+   } // else
 } // func assignActivationFunction()
 
 /**
@@ -756,18 +860,19 @@ func assignActivationPrime()
    if (parameters.activationFunction == "sigmoid")
    {
       activationPrime = sigmoidDerivative
-   }
+   } // if (parameters.activationFunction == "sigmoid")
+   else if (parameters.activationFunction == "tanh")
+   {
+      activationPrime = tanhDerivative
+   } // else if (parameters.activationFunction == "tanh")
+   else if (parameters.activationFunction == "relu")
+   {
+      activationPrime = reluDerivative
+   } // else if (parameters.activationFunction == "relu")
    else
    {
-      if (parameters.activationFunction == "tanh")
-      {
-         activationPrime = tanhDerivative
-      }
-      else
-      {
-         activationPrime = linearDerivative
-      }
-   } // if (parameters.activationFunction == "sigmoid")
+      activationPrime = linearDerivative
+   } // else
 } // func assignActivationPrime()
 
 /**
@@ -929,10 +1034,20 @@ func reportResults()
    var input []float64
    var index int
 
-   for index, input = range truthTable
+   if (parameters.trainMode)
    {
-      fmt.Printf("Input: %v, Expected: %f, Predicted: %.17f\n", input, expectedOutputs[index], testedOutputs[index])
-   }
+      for index, input = range truthTable
+      {
+         fmt.Printf("Input: %v, Expected: %f, Predicted: %.17f\n", input, expectedOutputs[index], testedOutputs[index])
+      }
+   } // if (parameters.trainMode)
+   else
+   {
+      for index, input = range truthTable
+      {
+         fmt.Printf("Input: %v, Predicted: %.17f\n", input, testedOutputs[index])
+      }
+   } // else
 } // func reportResults()
 
 /**
@@ -1367,13 +1482,13 @@ func customConfiguration(filePath string)
          continue
       }
 
-      parts = strings.SplitN(line, " ", 2)
-      if (len(parts) == 2)
+      parts = strings.SplitN(line, " ", TWO_SHELL_ARGUMENTS)
+      if (len(parts) == TWO_SHELL_ARGUMENTS)
       {
          key = parts[0]
          value = parts[1]
          viper.Set(key, value)
-      } // if (len(parts) == 2)
+      } // if (len(parts) == TWO_SHELL_ARGUMENTS)
    } // for (scanner.Scan())
 
    err = scanner.Err();

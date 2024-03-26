@@ -1297,12 +1297,12 @@ func customConfiguration(filePath string)
       }
 
       parts = strings.SplitN(line, " ", VARIABLE_VALUE_PAIR)
-      if (len(parts) == 2)
+      if (len(parts) == VARIABLE_VALUE_PAIR)
       {
          key = parts[0]
          value = parts[1]
          viper.Set(key, value)
-      } // if (len(parts) == 2)
+      } // if (len(parts) == VARIABLE_VALUE_PAIR)
    } // for (scanner.Scan())
 
    err = scanner.Err();

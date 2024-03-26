@@ -16,8 +16,8 @@ trainMode true
 learningRate 0.3
 activationFunction sigmoid
 
-// 1 Random, 2 Zero, 3 Manual, 4 Load from file
-weightInit 1
+// 1 Random, 2 Zero, 3 Manual, 4 Load from file, 5 Xavier
+weightInit 5
 
 writeWeights true
 fileName weights.txt
@@ -26,7 +26,7 @@ weightLowerBound 0.1
 weightUpperBound 1.5
 errorThreshold 2e-4
 maxIterations 100000
-weightSaveEvery 50000
+weightSaveEvery 100000
 keepAliveEvery 100000
 
 |  RUN PARAMETERS  |
