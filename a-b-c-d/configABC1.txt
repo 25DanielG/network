@@ -4,10 +4,9 @@
 
 | LAYER PARAMETERS |
 
-numHiddenLayers 2
 numInputNodes 2
-numShallowHiddenNodes 10
-numDeepHiddenNodes 10
+numHiddenOneNodes 10
+numHiddenTwoNodes 10
 numOutputNodes 1
 
 | TRAIN PARAMETERS |
