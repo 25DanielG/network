@@ -5,8 +5,8 @@
 | LAYER PARAMETERS |
 
 numInputNodes 2
-numHiddenOneNodes 5
-numHiddenTwoNodes 100
+numHiddenOneNodes 10
+numHiddenTwoNodes 12
 numOutputNodes 3
 
 | TRAIN PARAMETERS |
