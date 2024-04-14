@@ -1,19 +1,18 @@
 /**
- * This module creates types and functions for the purpose of defining an A-B-C-D neural network. The module includes defining
- * structures that encase network parameters (learning rate, number of shallow hidden nodes, number of deep hidden nodes, number
- * of input nodes, number of output nodes, number of test cases, writing weights to a file, the weights file name,
- * training mode, weight initialization, random weight generation lower and upper bounds, error threshold to
- * stop training, and max iterations for training). Furthermore, the NetworkArrays struct defines the arrays and weights following
- * the allocation of these structures.
+ * This module creates types and functions for the purpose of defining an N-layer neural network. The module includes defining
+ * structures that encase network parameters (learning rate, number of activation nodes in each layer, number of test cases,
+ * writing weights to a file, the weights file name, training mode, weight initialization, random weight generation lower and
+ * upper bounds, error threshold to stop training, and max iterations for training). Furthermore, the NetworkArrays struct
+ * defines the arrays and weights following the allocation of these structures.
  * The main function sets the network parameters using 'loadNetworkParameters()', echos the parameters through console using
  * 'echoNetworkParameters()', allocates the memory needed for the network arrays using 'allocateNetworkMemory()', populates
  * the network arrays by initializing the weights using 'populateNetworkMemory()', trains the network using 'train()', and
  * runs the network using 'runTrain()' and 'run()' for every row of the truth table.
  * This module includes functions that train and run the network for a given truth table, as well as "setup" functions that
- * create, allocate, and populate the A-B-C-D neural network. The training algorithm utilizes gradient descent to minimize the
+ * create, allocate, and populate the N-layer neural network. The training algorithm utilizes gradient descent to minimize the
  * error function. The network also uses backpropagation to update the weights efficiently.
  * @author Daniel Gergov
- * @creation 3/24/24
+ * @creation 4/13/24
  *
  * @tableofcontents
  * 1. main
@@ -45,6 +44,7 @@
  * 27. loadWeights
  * 28. saveWeights
  * 29. customConfiguration
+ * 30. parseActivations
  */
 
 package main
@@ -82,25 +82,18 @@ const XAVIER_WEIGHTS int = 5
 const DEFAULT_CONFIG_FILE string = "config.txt"
 const CONFIG_FROM_FILE bool = true
 
+const INPUT_LAYER int = 0
+
 const INPUT_OUTPUT_ACTIVATIONS int = 2
 const TWO_HIDDEN_LAYERS int = 2
 const PIPE_CHAR_LENGTH int = 1
 const FILE_NAME_PART int = 1
 
-const M_LAYER = 0      // input layer index
-const K_LAYER = 1      // hidden layer #1 index
-const J_LAYER = 2      // hidden layer #2 index
-const OUTPUT_LAYER = 3 // output layer index
-
-
 type NetworkParameters struct
 {
    learningRate float64
    
-   numInputNodes   int
-   numHiddenOneNodes  int
-   numHiddenTwoNodes  int
-   numOutputNodes  int
+   activations []int
 
    numTestCases      int
    externalTestData  bool
@@ -134,7 +127,6 @@ var arrays NetworkArrays
 var truthTable [][]float64
 var expectedOutputs [][]float64
 var testedOutputs [][]float64
-var numActivationArray []int
 
 var trainStart time.Time
 var done bool
@@ -149,6 +141,8 @@ var networkDepth int // input + hidden layers + output
 
 var activationFunction func(float64) float64
 var activationPrime func(float64) float64
+
+var inputNodes, outputNodes, outputLayer int
 
 /**
  * The main function initiates network parameter configuration, memory allocation for network operations, and executes
@@ -260,10 +254,7 @@ func loadNetworkParameters()
    customConfiguration(configFile)
 
    parameters.learningRate = viper.GetFloat64("learningRate")
-   parameters.numInputNodes = viper.GetInt("numInputNodes")
-   parameters.numHiddenOneNodes = viper.GetInt("numHiddenOneNodes")
-   parameters.numHiddenTwoNodes = viper.GetInt("numHiddenTwoNodes")
-   parameters.numOutputNodes = viper.GetInt("numOutputNodes")
+   parameters.activations, err = parseActivations(viper.GetString("activations"))
    parameters.numTestCases = viper.GetInt("numTestCases")
    parameters.externalTestData = viper.GetBool("externalTestData")
    parameters.testDataFile = viper.GetString("testDataFile")
@@ -288,13 +279,13 @@ func loadNetworkParameters()
  *
  * Parameters Defined:
  * - learningRate: Learning rate (lambda) for the gradient descent rate.
- * - numInputNodes, numHiddenNodes, numOutputNodes: Specify the architecture of the network in terms of neuron counts.
+ * - activations: Specify the architecture of the network in terms of neuron counts.
  * - numTestCases: The number of test cases to be used in training/validation.
  * - externalTestData: Boolean indicating if the test data is external to the program.
  * - testDataFile: The name of the file containing the test data.
  * - trainMode: Boolean indicating if the network is in training mode.
  * - activationFunction: The activation function to be used by the network.
- * - weightInit: Method or value for weight initialization; 1 being random, 2 being zeroes, 3 being manual, 4 being load from file,
+ * - weightInit: Method for weight initialization; 1 being random, 2 being zeroes, 3 being manual, 4 being load from file,
  *               and 5 being Xavier initialization.
  * - weightLowerBound, weightUpperBound: Define the range of values for initializing the network weights to random values.
  * - errorThreshold: The error level at which training is considered sufficiently complete.
@@ -312,10 +303,7 @@ func setNetworkParameters()
    parameters = NetworkParameters
    {
       learningRate:          0.3,
-      numInputNodes:         2,
-      numHiddenOneNodes: 5,
-      numHiddenTwoNodes:    5,
-      numOutputNodes:        3,
+      activations:           []int{2, 2, 1},
       numTestCases:          4,
       externalTestData:      true,
       testDataFile:          "data.txt",
@@ -341,7 +329,7 @@ func setNetworkParameters()
  *
  * Displayed Parameters:
  * - Learning rate (λ), error threshold, and maximum iterations for training control only if train mode is true.
- * - Network architecture detailed by the count of input, shallow hidden, deep hidden, and output nodes.
+ * - Network architecture detailed by the count of the activations.
  * - Activation function used by the network.
  * - The total number of test cases used for training or validation.
  * - Training mode indicator (true for training mode).
@@ -365,9 +353,8 @@ func echoNetworkParameters()
                  parameters.learningRate, parameters.errorThreshold, parameters.maxIterations)
    }
 
-   fmt.Printf("Network: %d-%d-%d-%d, NumberTestCases: %d\n",
-      parameters.numInputNodes, parameters.numHiddenOneNodes, parameters.numHiddenTwoNodes, parameters.numOutputNodes,
-      parameters.numTestCases)
+   fmt.Printf("Network: %v, NumberTestCases: %d\n", 
+              strings.Trim(strings.Join(strings.Fields(fmt.Sprint(parameters.activations)), "-"), ""), parameters.numTestCases)
 
    fmt.Printf("Activation Function: %s\n", parameters.activationFunction)
    fmt.Printf("Train Mode: %t\n", parameters.trainMode)
@@ -397,99 +384,66 @@ func echoNetworkParameters()
  */
 func allocateNetworkMemory() (NetworkArrays, [][]float64, [][]float64, [][]float64)
 {
-   var beta, input, output int
-   var nWeights, nActivations int
-   
-   networkDepth = TWO_HIDDEN_LAYERS + INPUT_OUTPUT_ACTIVATIONS
-   
-   numActivationArray = []int{parameters.numInputNodes, parameters.numHiddenOneNodes, parameters.numHiddenTwoNodes,
-                              parameters.numOutputNodes}
+   var alpha, beta, input, output int
+
+   networkDepth = len(parameters.activations)
+   inputNodes = parameters.activations[0]
+   outputNodes = parameters.activations[networkDepth - 1]
+   outputLayer = networkDepth - 1
    
    var activations [][]float64 = make([][]float64, networkDepth)
 
-   nActivations = M_LAYER
-   activations[nActivations] = make([]float64, numActivationArray[nActivations])
-
-   nActivations = K_LAYER
-   activations[nActivations] = make([]float64, numActivationArray[nActivations])
-
-   nActivations = J_LAYER
-   activations[nActivations] = make([]float64, numActivationArray[nActivations])
-
-   nActivations = OUTPUT_LAYER
-   activations[nActivations] = make([]float64, numActivationArray[nActivations])
+   for alpha = INPUT_LAYER; alpha < networkDepth; alpha++
+   {
+      activations[alpha] = make([]float64, parameters.activations[alpha])
+   } // for alpha = INPUT_LAYER; alpha < networkDepth; alpha++
 
    var weights [][][]float64 = make([][][]float64, networkDepth - 1)
 
-   nWeights = M_LAYER
-   weights[nWeights] = make([][]float64, numActivationArray[nWeights])
-   for beta = 0; beta < numActivationArray[nWeights]; beta++
+   for alpha = 0; alpha < networkDepth - 1; alpha++
    {
-      weights[nWeights][beta] = make([]float64, numActivationArray[nWeights + 1])
-   } // for beta = 0; beta < numActivationArray[nWeights]; beta++
-
-   nWeights = K_LAYER
-   weights[nWeights] = make([][]float64, numActivationArray[nWeights])
-   for beta = 0; beta < numActivationArray[nWeights]; beta++
-   {
-      weights[nWeights][beta] = make([]float64, numActivationArray[nWeights + 1])
-   } // for beta = 0; beta < numActivationArray[nWeights]; beta++
-
-   nWeights = J_LAYER
-   weights[nWeights] = make([][]float64, numActivationArray[nWeights])
-   for beta = 0; beta < numActivationArray[nWeights]; beta++
-   {
-      weights[nWeights][beta] = make([]float64, numActivationArray[nWeights + 1])
-   } // for beta = 0; beta < numActivationArray[nWeights]; beta++
+      weights[alpha] = make([][]float64, parameters.activations[alpha])
+      for beta = 0; beta < parameters.activations[alpha]; beta++
+      {
+         weights[alpha][beta] = make([]float64, parameters.activations[alpha + 1])
+      } // for beta = 0; beta < parameters.activations[alpha]; beta++
+   } // for alpha = 0; alpha < networkDepth - 1; alpha++
    
    var thetas, psis [][]float64
    
    if (parameters.trainMode)
    {
-      var nThetas, nPsis int
-
       thetas = make([][]float64, networkDepth - 1)
 
-      nThetas = M_LAYER
-      thetas[nThetas] = make([]float64, numActivationArray[nThetas])
-
-      nThetas = K_LAYER
-      thetas[nThetas] = make([]float64, numActivationArray[nThetas])
-
-      nThetas = J_LAYER
-      thetas[nThetas] = make([]float64, numActivationArray[nThetas])
+      for alpha = INPUT_LAYER; alpha < networkDepth - 1; alpha++
+      {
+         thetas[alpha] = make([]float64, parameters.activations[alpha])
+      } // for alpha = INPUT_LAYER; alpha < networkDepth - 1; alpha++
 
       psis = make([][]float64, networkDepth)
 
-      nPsis = M_LAYER
-      psis[nPsis] = make([]float64, numActivationArray[nPsis])
-
-      nPsis = K_LAYER
-      psis[nPsis] = make([]float64, numActivationArray[nPsis])
-
-      nPsis = J_LAYER
-      psis[nPsis] = make([]float64, numActivationArray[nPsis])
-
-      nPsis = OUTPUT_LAYER
-      psis[nPsis] = make([]float64, numActivationArray[nPsis])
+      for alpha = INPUT_LAYER + 1; alpha < networkDepth; alpha++
+      {
+         psis[alpha] = make([]float64, parameters.activations[alpha])
+      } // for alpha = INPUT_LAYER + 1; alpha < networkDepth; alpha++
    } // if (parameters.trainMode)
    
    var inputTruthTable [][]float64 = make([][]float64, parameters.numTestCases)
    for input = range inputTruthTable
    {
-      inputTruthTable[input] = make([]float64, parameters.numInputNodes)
+      inputTruthTable[input] = make([]float64, inputNodes)
    } // for input = range inputTruthTable
    
    var outputTruthTable [][]float64 = make([][]float64, parameters.numTestCases)
    for output = range outputTruthTable
    {
-      outputTruthTable[output] = make([]float64, parameters.numOutputNodes)
+      outputTruthTable[output] = make([]float64, outputNodes)
    } // for output = range outputTruthTable
 
    var ranOutputs [][]float64 = make([][]float64, parameters.numTestCases)
    for output = range ranOutputs
    {
-      ranOutputs[output] = make([]float64, parameters.numOutputNodes)
+      ranOutputs[output] = make([]float64, outputNodes)
    } // for output = range ranOutputs
    
    return NetworkArrays
@@ -555,9 +509,9 @@ func loadTestData()
       testLine = scanner.Text()
       parts = strings.Fields(testLine)
       var activationsFileName string = parts[0][1:]
-      var expectedPartsLength int = parameters.numInputNodes + parameters.numOutputNodes + PIPE_CHAR_LENGTH
+      var expectedPartsLength int = inputNodes + outputNodes + PIPE_CHAR_LENGTH
 
-      if (strings.Contains(testLine, ":") && len(parts) == FILE_NAME_PART + PIPE_CHAR_LENGTH + parameters.numOutputNodes)
+      if (strings.Contains(testLine, ":") && len(parts) == FILE_NAME_PART + PIPE_CHAR_LENGTH + outputNodes)
       {
          _, err = os.Stat(activationsFileName)
          if (err == nil)
@@ -577,26 +531,26 @@ func loadTestData()
          activationsScanner.Scan()
          var activationsLine string = activationsScanner.Text()
 
-         for m = 0; m < parameters.numInputNodes; m++
+         for m = 0; m < inputNodes; m++
          {
             truthTable[test][m], _ = strconv.ParseFloat(activationsLine, BITS_IN_FLOAT64)
-         }
+         } // for m = 0; m < inputNodes; m++
 
-         for i = 0; i < parameters.numOutputNodes; i++
+         for i = 0; i < outputNodes; i++
          {
             expectedOutputs[test][i], _ = strconv.ParseFloat(parts[i + FILE_NAME_PART + PIPE_CHAR_LENGTH], BITS_IN_FLOAT64)
-         }
-      } // if (strings.Contains(testLine, ":") && len(parts) == FILE_NAME_PART + PIPE_CHAR_LENGTH + parameters.numOutputNodes)
+         } // for i = 0; i < outputNodes; i++
+      } // if (strings.Contains(testLine, ":") && len(parts) == FILE_NAME_PART + PIPE_CHAR_LENGTH + outputNodes)
       else if (!strings.Contains(testLine, ":") && len(parts) == expectedPartsLength)
       {
-         for m = 0; m < parameters.numInputNodes; m++
+         for m = 0; m < inputNodes; m++
          {
             truthTable[test][m], _ = strconv.ParseFloat(parts[m], BITS_IN_FLOAT64)
          }
 
-         for i = 0; i < parameters.numOutputNodes; i++
+         for i = 0; i < outputNodes; i++
          {
-            expectedOutputs[test][i], _ = strconv.ParseFloat(parts[i + parameters.numInputNodes + 1], BITS_IN_FLOAT64)
+            expectedOutputs[test][i], _ = strconv.ParseFloat(parts[i + inputNodes + 1], BITS_IN_FLOAT64)
          }
       } // else if (!strings.Contains(testLine, ":") && len(parts) == expectedPartsLength)
       else
@@ -632,37 +586,21 @@ func loadTestData()
 func populateNetworkMemory()
 {
    var alpha, beta, betaNought int
-   var nWeights int
+
    if (parameters.weightInit == RANDOM_WEIGHTS)
    {
       rand.Seed(time.Now().UnixNano())
 
-      nWeights = M_LAYER
-      for beta = 0; beta < numActivationArray[nWeights]; beta++
+      for alpha = INPUT_LAYER; alpha < networkDepth - 1; alpha++
       {
-         for betaNought = 0; betaNought < numActivationArray[nWeights + 1]; betaNought++
+         for beta = 0; beta < parameters.activations[alpha]; beta++
          {
-            (*arrays.weights)[nWeights][beta][betaNought] = randomNumber(parameters.weightLowerBound, parameters.weightUpperBound)
-         } // for betaNought = 0; betaNought < numActivationArray[nWeights + 1]; betaNought++
-      } // for beta = 0; beta < numActivationArray[nWeights]; beta++
-
-      nWeights = K_LAYER
-      for beta = 0; beta < numActivationArray[nWeights]; beta++
-      {
-         for betaNought = 0; betaNought < numActivationArray[nWeights + 1]; betaNought++
-         {
-            (*arrays.weights)[nWeights][beta][betaNought] = randomNumber(parameters.weightLowerBound, parameters.weightUpperBound)
-         } // for betaNought = 0; betaNought < numActivationArray[nWeights + 1]; betaNought++
-      } // for beta = 0; beta < numActivationArray[nWeights]; beta++
-
-      nWeights = J_LAYER
-      for beta = 0; beta < numActivationArray[nWeights]; beta++
-      {
-         for betaNought = 0; betaNought < numActivationArray[nWeights + 1]; betaNought++
-         {
-            (*arrays.weights)[nWeights][beta][betaNought] = randomNumber(parameters.weightLowerBound, parameters.weightUpperBound)
-         } // for betaNought = 0; betaNought < numActivationArray[nWeights + 1]; betaNought++
-      } // for beta = 0; beta < numActivationArray[nWeights]; beta++
+            for betaNought = 0; betaNought < parameters.activations[alpha + 1]; betaNought++
+            {
+               (*arrays.weights)[alpha][beta][betaNought] = randomNumber(parameters.weightLowerBound, parameters.weightUpperBound)
+            } // for betaNought = 0; betaNought < parameters.activations[alpha + 1]; betaNought++
+         } // for beta = 0; beta < parameters.activations[alpha]; beta++
+      } // for alpha = INPUT_LAYER; alpha < networkDepth - 1; alpha++
    } // if (parameters.weightInit == RANDOM_WEIGHTS)
    else if (parameters.weightInit == MANUAL_WEIGHTS)
    {
@@ -680,56 +618,23 @@ func populateNetworkMemory()
    } // else if (parameters.weightInit == LOAD_WEIGHTS)
    else if (parameters.weightInit == XAVIER_WEIGHTS)
    {
-      var nIn, nOut int
-      var distribution, lowBound, highBound float64
-
-      nWeights = M_LAYER
-      nIn = numActivationArray[alpha]
-      nOut = numActivationArray[alpha + 1]
-
-      distribution = math.Sqrt(6.0 / float64(nIn + nOut))
-      lowBound = -distribution
-      highBound = distribution
-
-      for beta = 0; beta < numActivationArray[nWeights]; beta++
+      for alpha = INPUT_LAYER; alpha < outputLayer; alpha++
       {
-         for betaNought = 0; betaNought < numActivationArray[nWeights + 1]; betaNought++
+         var nIn int = parameters.activations[alpha]
+         var nOut int = parameters.activations[alpha + 1]
+
+         var distribution float64 = math.Sqrt(6.0 / float64(nIn + nOut))
+         var lowBound float64 = -distribution
+         var highBound float64 = distribution
+
+         for beta = 0; beta < parameters.activations[alpha]; beta++
          {
-            (*arrays.weights)[nWeights][beta][betaNought] = randomNumber(lowBound, highBound)
-         } // for betaNought = 0; betaNought < numActivationArray[nWeights + 1]; betaNought++
-      } // for beta = 0; beta < numActivationArray[nWeights]; beta++
-
-      nWeights = K_LAYER
-      nIn = numActivationArray[alpha]
-      nOut = numActivationArray[alpha + 1]
-
-      distribution = math.Sqrt(6.0 / float64(nIn + nOut))
-      lowBound = -distribution
-      highBound = distribution
-
-      for beta = 0; beta < numActivationArray[nWeights]; beta++
-      {
-         for betaNought = 0; betaNought < numActivationArray[nWeights + 1]; betaNought++
-         {
-            (*arrays.weights)[nWeights][beta][betaNought] = randomNumber(lowBound, highBound)
-         } // for betaNought = 0; betaNought < numActivationArray[nWeights + 1]; betaNought++
-      } // for beta = 0; beta < numActivationArray[nWeights]; beta++
-
-      nWeights = J_LAYER
-      nIn = numActivationArray[alpha]
-      nOut = numActivationArray[alpha + 1]
-
-      distribution = math.Sqrt(6.0 / float64(nIn + nOut))
-      lowBound = -distribution
-      highBound = distribution
-
-      for beta = 0; beta < numActivationArray[nWeights]; beta++
-      {
-         for betaNought = 0; betaNought < numActivationArray[nWeights + 1]; betaNought++
-         {
-            (*arrays.weights)[nWeights][beta][betaNought] = randomNumber(lowBound, highBound)
-         } // for betaNought = 0; betaNought < numActivationArray[nWeights + 1]; betaNought++
-      } // for beta = 0; beta < numActivationArray[nWeights]; beta++
+            for betaNought = 0; betaNought < parameters.activations[alpha + 1]; betaNought++
+            {
+               (*arrays.weights)[alpha][beta][betaNought] = randomNumber(lowBound, highBound)
+            } // for betaNought = 0; betaNought < parameters.activations[alpha + 1]; betaNought++
+         } // for beta = 0; beta < parameters.activations[alpha]; beta++
+      } // for alpha = INPUT_LAYER; alpha < outputLayer; alpha++
    } // else if (parameters.weightInit == XAVIER_WEIGHTS)
 
    if (parameters.externalTestData)
@@ -1019,15 +924,15 @@ func train(inputs [][]float64, expectedOutputs [][]float64)
    epochError = math.MaxFloat64
    epoch = 0
 
-   var input, m, k, j, i int
-   var nActivations, nPsis, nWeights, nThetas int
-   var omegaK, omegaJ, omegaI float64
+   var input, alpha, beta, betaNought, i int
+   var hiddenOne int = INPUT_LAYER + 1
+   var hiddenTwo int = INPUT_LAYER + 2
+
+   var omega float64
    
    var activations [][]float64 = *arrays.activations
-
    var thetas [][]float64 = *arrays.thetas
    var psis [][]float64 = *arrays.psis
-
    var weights [][][]float64 = *arrays.weights
    
    for (!done)
@@ -1039,52 +944,45 @@ func train(inputs [][]float64, expectedOutputs [][]float64)
 
          runTrain(&activations, &thetas, &psis, &weights, &inputs[input], &expectedOutputs[input])
 
-         nActivations = J_LAYER
-         nPsis = OUTPUT_LAYER
-         nWeights = J_LAYER
-         nThetas = J_LAYER
-
-         for j = 0; j < parameters.numHiddenTwoNodes; j++
+         for alpha = outputLayer - 1; alpha > INPUT_LAYER + 1; alpha--
          {
-            omegaJ = 0.0
-            for i = 0; i < parameters.numOutputNodes; i++
+            for beta = 0; beta < parameters.activations[alpha]; beta++
             {
-               omegaJ += psis[nPsis][i] * weights[nWeights][j][i]
-               weights[nWeights][j][i] += parameters.learningRate * activations[nActivations][j] * psis[nPsis][i]
-            } // for i = 0; i < parameters.numOutputNodes; i++
+               omega = 0.0
+               for betaNought = 0; betaNought < parameters.activations[alpha + 1]; betaNought++
+               {
+                  omega += psis[alpha + 1][betaNought] * weights[alpha][beta][betaNought]
+                  weights[alpha][beta][betaNought] += parameters.learningRate * activations[alpha][beta]
+                                                      * psis[alpha + 1][betaNought]
+               } // for betaNought = 0; betaNought < parameters.activations[alpha + 1]; betaNought++
 
-            psis[nPsis - 1][j] = omegaJ * activationPrime(thetas[nThetas][j])
-         } // for j = 0; j < parameters.numHiddenTwoNodes; j++
+               psis[alpha][beta] = omega * activationPrime(thetas[alpha][beta])
+            } // for beta = 0; beta < parameters.activations[alpha]; beta++
+         } // for alpha = outputLayer - 1; alpha > INPUT_LAYER + 1; alpha--
 
-         nActivations = K_LAYER
-         nPsis = J_LAYER
-         nWeights = K_LAYER
-         nThetas = K_LAYER
-
-
-         for k = 0; k < parameters.numHiddenOneNodes; k++
+         for beta = 0; beta < parameters.activations[hiddenOne]; beta++
          {
-            omegaK = 0.0
-            for j = 0; j < parameters.numHiddenTwoNodes; j++
+            omega = 0.0
+            for betaNought = 0; betaNought < parameters.activations[hiddenTwo]; betaNought++
             {
-               omegaK += psis[nPsis][j] * weights[nWeights][k][j]
-               weights[nWeights][k][j] += parameters.learningRate * activations[nActivations][k] * psis[nPsis][j]
-            } // for j = 0; j < parameters.numHiddenTwoNodes; j++
+               omega += psis[hiddenTwo][betaNought] * weights[hiddenOne][beta][betaNought]
+               weights[hiddenOne][beta][betaNought] += parameters.learningRate * activations[hiddenOne][beta]
+                                                      * psis[hiddenTwo][betaNought]
+            } // for betaNought = 0; betaNought < parameters.activations[hiddenTwo]; betaNought++
 
-            psis[nPsis - 1][k] = omegaK * activationPrime(thetas[nThetas][k])
+            psis[hiddenOne][beta] = omega * activationPrime(thetas[hiddenOne][beta])
 
-            for m = 0; m < parameters.numInputNodes; m++
+            for betaNought = 0; betaNought < inputNodes; betaNought++
             {
-               weights[nWeights - 1][m][k] += parameters.learningRate * activations[nActivations - 1][m] * psis[nPsis - 1][k]
-            } // for m = 0; m < parameters.numInputNodes; m++
-         } // for k = 0; k < parameters.numHiddenOneNodes; k++
-
-         nActivations = OUTPUT_LAYER
+               weights[INPUT_LAYER][betaNought][beta] += parameters.learningRate * activations[INPUT_LAYER][betaNought]
+                                                         * psis[hiddenOne][beta]
+            } // for betaNought = 0; betaNought < inputNodes; betaNought++
+         } // for beta = 0; beta < parameters.activations[hiddenOne]; beta++
 
          for i = range run(inputs[input])
          {
-            omegaI = expectedOutputs[input][i] - activations[nActivations][i]
-            inputError += 0.5 * omegaI * omegaI
+            omega = expectedOutputs[input][i] - activations[outputLayer][i]
+            inputError += 0.5 * omega * omega
          } // for i = range run(inputs[input])
 
          epochError += inputError
@@ -1154,7 +1052,7 @@ func reportResults()
       
       if (epochError <= parameters.errorThreshold)
       {
-         fmt.Printf("Error became less than error threshold %.7f\n", epochError)
+         fmt.Printf("Error became less than error threshold %.9f\n", epochError)
       }
    } // if (parameters.trainMode)
 
@@ -1197,52 +1095,32 @@ func reportResults()
  */
 func run(a []float64) []float64
 {
-   var m, k, j, i int
-   var nWeights, nActivations int
+   var alpha, beta, betaNought int
+   
+   var theta float64
    
    var activations [][]float64 = *arrays.activations
    var weights [][][]float64 = *arrays.weights
    
-   nWeights = M_LAYER
-   nActivations = K_LAYER
-
-   for k = 0; k < parameters.numHiddenOneNodes; k++
+   for beta = 0; beta < parameters.activations[INPUT_LAYER]; beta++
    {
-      var sum float64 = 0.0
-      for m = 0; m < parameters.numInputNodes; m++
+      activations[INPUT_LAYER][beta] = a[beta]
+   }
+
+   for alpha = INPUT_LAYER + 1; alpha <= outputLayer; alpha++
+   {
+      for beta = 0; beta < parameters.activations[alpha]; beta++
       {
-         sum += a[m] * weights[nWeights][m][k]
-      }
-      activations[nActivations][k] = activationFunction(sum)
-   } // for k = 0; k < parameters.numHiddenOneNodes; k++
+         theta = 0.0
+         for betaNought = 0; betaNought < parameters.activations[alpha - 1]; betaNought++
+         {
+            theta += activations[alpha - 1][betaNought] * weights[alpha - 1][betaNought][beta]
+         } // for betaNought = 0; betaNought < parameters.activations[alpha - 1]; betaNought++
+         activations[alpha][beta] = activationFunction(theta)
+      } // for beta = 0; beta < parameters.activations[alpha]; beta++
+   } // for alpha = INPUT_LAYER + 1; alpha <= outputLayer; alpha++
    
-   nWeights = K_LAYER
-   nActivations = J_LAYER
-
-   for j = 0; j < parameters.numHiddenTwoNodes; j++
-   {
-      var sum float64 = 0.0
-      for k = 0; k < parameters.numHiddenOneNodes; k++
-      {
-         sum += activations[nActivations - 1][k] * weights[nWeights][k][j]
-      }
-      activations[nActivations][j] = activationFunction(sum)
-   } // for j = 0; j < parameters.numHiddenTwoNodes; j++
-
-   nWeights = J_LAYER
-   nActivations = OUTPUT_LAYER
-
-   for i = 0; i < parameters.numOutputNodes; i++
-   {
-      var sum float64 = 0.0
-      for j = 0; j < parameters.numHiddenTwoNodes; j++
-      {
-         sum += activations[nActivations - 1][j] * weights[nWeights][j][i]
-      }
-      activations[nActivations][i] = activationFunction(sum)
-   } // for i = 0; i < parameters.numOutputNodes; i++
-   
-   return (*arrays.activations)[OUTPUT_LAYER]
+   return (*arrays.activations)[outputLayer]
 } // func run(a []float64) []float64
 
 /**
@@ -1271,63 +1149,41 @@ func run(a []float64) []float64
 func runTrain(activations *[][]float64, thetas *[][]float64, psis *[][]float64, weights *[][][]float64,
               input *[]float64, outputs *[]float64)
 {
-   var m, k, j, i int
-   var nWeights, nActivations, nThetas, nPsis int
+   var alpha, beta, betaNought int
    var omegaI, thetaI float64
    
-   nActivations = M_LAYER
-
-   for m = 0; m < parameters.numInputNodes; m++
+   for beta = 0; beta < parameters.activations[INPUT_LAYER]; beta++
    {
-      (*activations)[nActivations][m] = (*input)[m]
-   } // for m = 0; m < parameters.numInputNodes; m++
-   
-   nActivations = K_LAYER
-   nThetas = K_LAYER
-   nWeights = M_LAYER
+      (*activations)[INPUT_LAYER][beta] = (*input)[beta]
+   }
 
-   for k = 0; k < parameters.numHiddenOneNodes; k++
+   for alpha = INPUT_LAYER + 1; alpha < outputLayer; alpha++
    {
-      (*thetas)[nThetas][k] = 0.0
-      for m = 0; m < parameters.numInputNodes; m++
+      for beta = 0; beta < parameters.activations[alpha]; beta++
       {
-         (*thetas)[nThetas][k] += (*activations)[nActivations - 1][m] * (*weights)[nWeights][m][k]
-      } // for m = 0; m < parameters.numInputNodes; m++
-      
-      (*activations)[nActivations][k] = activationFunction((*thetas)[nThetas][k])
-   } // for k = 0; k < parameters.numHiddenOneNodes; k++
+         (*thetas)[alpha][beta] = 0.0
+         for betaNought = 0; betaNought < parameters.activations[alpha - 1]; betaNought++
+         {
+            (*thetas)[alpha][beta] += (*activations)[alpha - 1][betaNought] * (*weights)[alpha - 1][betaNought][beta]
+         } // for betaNought = 0; betaNought < parameters.activations[alpha - 1]; betaNought++
+         (*activations)[alpha][beta] = activationFunction((*thetas)[alpha][beta])
+      } // for beta = 0; beta < parameters.activations[alpha]; beta++
+   } // for alpha = INPUT_LAYER + 1; alpha < outputLayer; alpha++
 
-   nActivations = J_LAYER
-   nThetas = J_LAYER
-   nWeights = K_LAYER
+   alpha = outputLayer
 
-   for j = 0; j < parameters.numHiddenTwoNodes; j++
-   {
-      (*thetas)[J_LAYER][j] = 0.0
-      for k = 0; k < parameters.numHiddenOneNodes; k++
-      {
-         (*thetas)[nThetas][j] += (*activations)[nActivations - 1][k] * (*weights)[nWeights][k][j]
-      } // for k = 0; k < parameters.numHiddenOneNodes; k++
-      
-      (*activations)[nActivations][j] = activationFunction((*thetas)[nThetas][j])
-   } // for j = 0; j < parameters.numHiddenTwoNodes; j++
-   
-   nActivations = OUTPUT_LAYER
-   nWeights = J_LAYER
-   nPsis = OUTPUT_LAYER
-
-   for i = 0; i < parameters.numOutputNodes; i++
+   for beta = 0; beta < parameters.activations[alpha]; beta++
    {
       thetaI = 0.0
-      for j = 0; j < parameters.numHiddenTwoNodes; j++
+      for betaNought = 0; betaNought < parameters.activations[alpha - 1]; betaNought++
       {
-         thetaI += (*activations)[nActivations - 1][j] * (*weights)[nWeights][j][i]
-      } // for j = 0; j < parameters.numHiddenTwoNodes; j++
+         thetaI += (*activations)[alpha - 1][betaNought] * (*weights)[alpha - 1][betaNought][beta]
+      } // for betaNought = 0; betaNought < parameters.activations[alpha - 1]; betaNought++
 
-      (*activations)[nActivations][i] = activationFunction(thetaI)
-      omegaI = (*outputs)[i] - (*activations)[nActivations][i]
-      (*psis)[nPsis][i] = omegaI * activationPrime(thetaI)
-   } // for i = 0; i < parameters.numOutputNodes; i++
+      (*activations)[alpha][beta] = activationFunction(thetaI)
+      omegaI = (*outputs)[beta] - (*activations)[alpha][beta]
+      (*psis)[alpha][beta] = omegaI * activationPrime(thetaI)
+   } // for beta = 0; beta < parameters.activations[alpha]; beta++
 } // func runTrain(activations *[][]float64...
 
 /**
@@ -1437,15 +1293,12 @@ func checkError(err error)
  * 1. Checks if the file exists and creates a new file if it does not.
  * 2. Opens the file for writing.
  * 3. Writes the network's architecture to the file.
- * 4. Writes the input-shallow_hidden weights to the file.
- * 5. Writes the shallow_hidden-deep_hidden weights to the file.
- * 6. Writes the deeo_hidden-output weights to the file.
+ * 4. Writes the weights for the entire network to the file.
  * 7. Closes the file.
  */
 func saveWeights()
 {
-   var m, k, j, i int
-   var nWeights int
+   var alpha, beta, betaNought int
    var file *os.File
    var err error
    var fileExists bool = false
@@ -1470,51 +1323,28 @@ func saveWeights()
 
    defer file.Close()
 
-   _, err = file.WriteString(fmt.Sprintf("%d-%d-%d-%d\n", parameters.numInputNodes, parameters.numHiddenOneNodes,
-                             parameters.numHiddenTwoNodes, parameters.numOutputNodes)) // write network architecture to file
+   var layerString string = strings.Trim(strings.Join(strings.Fields(fmt.Sprint(parameters.activations)), "-"), "")
+
+   _, err = file.WriteString(layerString + "\n") // write network architecture to file
    checkError(err)
 
    _, err = file.WriteString("\n") // write new line to file
    checkError(err)
 
-   nWeights = M_LAYER
-
-   for m = 0; m < parameters.numInputNodes; m++
+   for alpha = INPUT_LAYER; alpha < outputLayer; alpha++
    {
-      for k = 0; k < parameters.numHiddenOneNodes; k++
+      for beta = 0; beta < parameters.activations[alpha]; beta++
       {
-         _, err = file.WriteString(fmt.Sprintf("%.17f\n", (*arrays.weights)[nWeights][m][k]))
-         checkError(err)
-      } // for k = 0; k < parameters.numHiddenOneNodes; k++
-   } // for m = 0; m < parameters.numInputNodes; m++
+         for betaNought = 0; betaNought < parameters.activations[alpha + 1]; betaNought++
+         {
+            _, err = file.WriteString(fmt.Sprintf("%.17f\n", (*arrays.weights)[alpha][beta][betaNought]))
+            checkError(err)
+         } // for betaNought = 0; betaNought < parameters.activations[alpha + 1]; betaNought++
+      } // for beta = 0; beta < parameters.activations[alpha]; beta++
 
-   _, err = file.WriteString("\n") // write new line to file
-   checkError(err)
-
-   nWeights = K_LAYER
-
-   for k = 0; k < parameters.numHiddenOneNodes; k++
-   {
-      for j = 0; j < parameters.numHiddenTwoNodes; j++
-      {
-         _, err = file.WriteString(fmt.Sprintf("%.17f\n", (*arrays.weights)[nWeights][k][j]))
-         checkError(err)
-      } // for j = 0; j < parameters.numHiddenTwoNodes; j++
-   } // for k = 0; k < parameters.numHiddenOneNodes; k++
-
-   _, err = file.WriteString("\n") // write new line to file
-   checkError(err)
-
-   nWeights = J_LAYER
-
-   for j = 0; j < parameters.numHiddenTwoNodes; j++
-   {
-      for i = 0; i < parameters.numOutputNodes; i++
-      {
-         _, err = file.WriteString(fmt.Sprintf("%.17f\n", (*arrays.weights)[nWeights][j][i]))
-         checkError(err)
-      } // for j = 0; j < parameters.numHiddenTwoNodes; j++
-   } // for i = 0; i < parameters.numOutputNodes; i++
+      _, err = file.WriteString("\n") // write new line to file
+      checkError(err)
+   } // for alpha = INPUT_LAYER; alpha < outputLayer; alpha++
 } // func saveWeights()
 
 /**
@@ -1533,11 +1363,10 @@ func saveWeights()
  */
 func loadWeights()
 {
-   var m, k, j, i int
-   var nWeights int
    var file *os.File
    var err error
    var fileExists bool = false
+   var alpha, beta, betaNought int
 
    _, err = os.Stat(parameters.fileName)
    if (!fileExists && errors.Is(err, os.ErrNotExist))
@@ -1555,12 +1384,7 @@ func loadWeights()
    _, err = fmt.Fscan(file, &architecture)
    checkError(err)
 
-   var numInputNodes string = strconv.Itoa(parameters.numInputNodes)
-   var numHiddenOneNodes string = strconv.Itoa(parameters.numHiddenOneNodes)
-   var numHiddenTwoNodes string = strconv.Itoa(parameters.numHiddenTwoNodes)
-   var numOutputNodes string = strconv.Itoa(parameters.numOutputNodes)
-
-   var configString string = numInputNodes + "-" + numHiddenOneNodes + "-" + numHiddenTwoNodes + "-" + numOutputNodes
+   var configString string = strings.Trim(strings.Join(strings.Fields(fmt.Sprint(parameters.activations)), "-"), "")
 
    if (configString != architecture)
    {
@@ -1568,44 +1392,17 @@ func loadWeights()
       panic(err)
    } // if (configString != architecture)
 
-   _, err = fmt.Fscan(file, architecture)
-
-   nWeights = M_LAYER
-
-   for m = 0; m < parameters.numInputNodes; m++
+   for alpha = INPUT_LAYER; alpha < outputLayer; alpha++
    {
-      for k = 0; k < parameters.numHiddenOneNodes; k++
+      for beta = 0; beta < parameters.activations[alpha]; beta++
       {
-         _, err = fmt.Fscan(file, &(*arrays.weights)[nWeights][m][k])
-         checkError(err)
-      } // for k = 0; k < parameters.numHiddenOneNodes; k++
-   } // for m = 0; m < parameters.numInputNodes; m++
-
-   _, err = fmt.Fscan(file, architecture)
-
-   nWeights = K_LAYER
-
-   for k = 0; k < parameters.numHiddenOneNodes; k++
-   {
-      for j = 0; j < parameters.numHiddenTwoNodes; j++
-      {
-         _, err = fmt.Fscan(file, &(*arrays.weights)[nWeights][k][j])
-         checkError(err)
-      } // for j = 0; j < parameters.numHiddenTwoNodes; j++
-   } // for k = 0; k < parameters.numHiddenOneNodes; k++
-
-   _, err = fmt.Fscan(file, architecture)
-
-   nWeights = J_LAYER
-
-   for j = 0; j < parameters.numHiddenTwoNodes; j++
-   {
-      for i = 0; i < parameters.numOutputNodes; i++
-      {
-         _, err = fmt.Fscan(file, &(*arrays.weights)[nWeights][j][i])
-         checkError(err)
-      } // for i = 0; i < parameters.numOutputNodes; i++
-   } // for j = 0; j < parameters.numHiddenTwoNodes; j++
+         for betaNought = 0; betaNought < parameters.activations[alpha + 1]; betaNought++
+         {
+            _, err = fmt.Fscan(file, &(*arrays.weights)[alpha][beta][betaNought])
+            checkError(err)
+         } // for betaNought = 0; betaNought < parameters.activations[alpha + 1]; betaNought++
+      } // for beta = 0; beta < parameters.activations[alpha]; beta++
+   } // for alpha = INPUT_LAYER; alpha < outputLayer; alpha++
 } // func loadWeights()
 
 /**
@@ -1628,7 +1425,6 @@ func customConfiguration(filePath string)
    var err error
    var scanner *bufio.Scanner
    var line, key, value string
-   var parts []string
 
    file, err = os.Open(filePath)
    if (err != nil)
@@ -1648,13 +1444,14 @@ func customConfiguration(filePath string)
          continue
       }
 
-      parts = strings.SplitN(line, " ", TWO_SHELL_ARGUMENTS)
-      if (len(parts) == TWO_SHELL_ARGUMENTS)
+      spaceIndex := strings.Index(line, " ")
+      if (spaceIndex == -1)
       {
-         key = parts[0]
-         value = parts[1]
-         viper.Set(key, value)
-      } // if (len(parts) == TWO_SHELL_ARGUMENTS)
+         continue
+      }
+      key = line[:spaceIndex]
+      value = line[spaceIndex + 1:]
+      viper.Set(key, strings.TrimSpace(value))
    } // for (scanner.Scan())
 
    err = scanner.Err();
@@ -1663,3 +1460,32 @@ func customConfiguration(filePath string)
       panic(fmt.Errorf("Error in scanning config file: %w", err))
    }
 } // func customConfiguration(filePath string)
+
+/**
+ * The parseActivations function parses a string of activations from the configuration file into an array of integers.
+ * The function splits the input string by commas, trims the whitespace from each element, and converts the elements to
+ * integers. The function returns an array of integers representing the activations.
+ *
+ * Parameters:
+ * - `input`: The string of activations to parse.
+ */
+func parseActivations(input string) ([]int, error)
+{
+   var result []int
+   
+   for _, s := range strings.Split(strings.Trim(input, "[]"), ",")
+   {
+      i, err := strconv.Atoi(strings.TrimSpace(s))
+
+      if (err != nil)
+      {
+         return nil, err
+      } // if (err != nil)
+      else
+      {
+         result = append(result, i)
+      } // else
+   } // for _, s := range strings.Split(strings.Trim(input, "[]"), ",")
+
+   return result, nil
+} // func parseActivations(input string) ([]int, error)

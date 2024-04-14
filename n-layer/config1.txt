@@ -4,10 +4,7 @@
 
 | LAYER PARAMETERS |
 
-numInputNodes 2
-numHiddenOneNodes 5
-numHiddenTwoNodes 5
-numOutputNodes 3
+activations [2,20,1]
 
 | TRAIN PARAMETERS |
 
@@ -32,4 +29,4 @@ keepAliveEvery 100000
 
 numTestCases 4
 externalTestData true
-testDataFile dataAll.txt
+testDataFile dataXOR.txt
