@@ -12,7 +12,7 @@
  * create, allocate, and populate the N-layer neural network. The training algorithm utilizes gradient descent to minimize the
  * error function. The network also uses backpropagation to update the weights efficiently.
  * @author Daniel Gergov
- * @creation 4/13/24
+ * @creation 4/15/24
  *
  * @tableofcontents
  * 1. main
@@ -35,16 +35,18 @@
  * 18. assignActivationFunction
  * 19. assignActivationPrime
  * 20. train
- * 21. testNetwork
- * 22. reportResults
- * 23. run
- * 24. runTrain
- * 25. formatTime
- * 26. checkError
- * 27. loadWeights
- * 28. saveWeights
- * 29. customConfiguration
- * 30. parseActivations
+ * 21. computeTrainEstimate
+ * 22. testNetwork
+ * 23. reportResults
+ * 24. run
+ * 25. runTrain
+ * 26. formatTime
+ * 27. checkError
+ * 28. loadWeights
+ * 29. saveWeights
+ * 30. saveActivations
+ * 31. customConfiguration
+ * 32. parseActivations
  */
 
 package main
@@ -99,19 +101,22 @@ type NetworkParameters struct
    externalTestData  bool
    testDataFile      string
    
-   trainMode          bool
-   weightInit         int    // 1 is randomize, 2 is zero, 3 is manual, 4 is load from file, 5 is xavier initialization
-   writeWeights       bool
-   fileName           string
-   activationFunction string // sigmoid, tanh, linear, relu
+   trainMode           bool
+   weightInit          int    // 1 is randomize, 2 is zero, 3 is manual, 4 is load from file, 5 is xavier initialization
+   writeWeights        bool
+   fileName            string
+   writeActivations    bool
+   activationsFileName string
+   activationFunction  string // sigmoid, tanh, linear, relu
    
    weightLowerBound float64
    weightUpperBound float64
    
-   errorThreshold  float64
-   maxIterations   int
-   weightSaveEvery int
-   keepAliveEvery  int
+   errorThreshold    float64
+   maxIterations     int
+   weightSaveEvery   int
+   keepAliveEvery    int
+   estimateTrainTime bool
 } // type NetworkParameters struct
 
 type NetworkArrays struct
@@ -131,9 +136,13 @@ var testedOutputs [][]float64
 var trainStart time.Time
 var done bool
 var epochError float64
+var previousEpochError float64
 var inputError float64
 var epoch int
 var executionTime float64
+
+var averageTime float64 = 0.0
+var epochDuration, previousDuration, duration, errorChange, remainingEpochs, remaining, predictedEpochs float64
 
 var configFile string
 
@@ -154,6 +163,7 @@ var inputNodes, outputNodes, outputLayer int
  * 4. Reports results by iterating over the truth table, comparing and outputting expected outputs
  *    against predictions for each input.
  * 5. Saves the weights to a file if the writeWeights network configuration is 'true'.
+ * 6. Saves the activations to a file if the writeActivations network configuration is 'true'.
  *
  * Limitations:
  * - Assumes correct implementation of and depends on external functions (setNetworkParameters, echoNetworkParameters,
@@ -192,6 +202,11 @@ func main()
    if (parameters.writeWeights)
    {
       saveWeights()
+   }
+
+   if (parameters.writeActivations)
+   {
+      saveActivations()
    }
 } // func main()
 
@@ -262,6 +277,8 @@ func loadNetworkParameters()
    parameters.weightInit = viper.GetInt("weightInit")
    parameters.writeWeights = viper.GetBool("writeWeights")
    parameters.fileName = viper.GetString("fileName")
+   parameters.writeActivations = viper.GetBool("writeActivations")
+   parameters.activationsFileName = viper.GetString("activationsFileName")
    parameters.activationFunction = viper.GetString("activationFunction")
    parameters.weightLowerBound = viper.GetFloat64("weightLowerBound")
    parameters.weightUpperBound = viper.GetFloat64("weightUpperBound")
@@ -269,6 +286,7 @@ func loadNetworkParameters()
    parameters.maxIterations = viper.GetInt("maxIterations")
    parameters.weightSaveEvery = viper.GetInt("weightSaveEvery")
    parameters.keepAliveEvery = viper.GetInt("keepAliveEvery")
+   parameters.estimateTrainTime = viper.GetBool("estimateTrainTime")
 } // func loadNetworkParameters()
 
 /**
@@ -292,8 +310,11 @@ func loadNetworkParameters()
  * - maxIterations: Limits the number of training iterations.
  * - writeWeights: Boolean indicating if the weights should be written to a file.
  * - fileName: The name of the file to write the weights to.
+ * - writeActivations: Boolean indicating if the activations should be written to a file.
+ * - activationsFileName: The name of the file to write the activations to.
  * - weightSaveEvery: The number of iterations to save the weights after.
  * - keepAliveEvery: The number of iterations to output a keep-alive message.
+ * - estimateTrainTime: Boolean indicating whether the train function should estimate the time for network train completion.
  *
  * Limitations:
  * - The function statically sets network parameters without accepting external input.
@@ -311,6 +332,8 @@ func setNetworkParameters()
       weightInit:            1,
       writeWeights:          true,
       fileName:              "weights.txt",
+      writeActivations:      false,
+      activationsFileName:   "activations.txt",
       activationFunction:    "sigmoid",
       weightLowerBound:      0.1,
       weightUpperBound:      1.5,
@@ -318,6 +341,7 @@ func setNetworkParameters()
       maxIterations:         100000,
       weightSaveEvery:       10000,
       keepAliveEvery:        100000,
+      estimateTrainTime:     true,
    }
 } // func setNetworkParameters()
 
@@ -337,6 +361,7 @@ func setNetworkParameters()
  * - Weight initialization method, where "1" denotes random initialization and "2" denotes initialization to zero, 3 denotes
  * -    manual initialization, 4 denotes loading from a file, and 5 denotes Xavier initialization.
  * - Keep alive and save weights every N iterations.
+ * - ETA indicator dictating whether to provide a training ETA time.
  * - Range for random weight initialization, specifying lower and upper bounds.
  *
  * Limitations:
@@ -351,7 +376,12 @@ func echoNetworkParameters()
    {
       fmt.Printf("λ: %v, Error Threshold: %v, Max Iterations: %d\n",
                  parameters.learningRate, parameters.errorThreshold, parameters.maxIterations)
+      fmt.Printf("Keep Alive Every: %d, Save Weights Every: %d\n", parameters.keepAliveEvery, parameters.weightSaveEvery)
+      fmt.Printf("Compute a training ETA: %t\n", parameters.estimateTrainTime)
    }
+
+   fmt.Printf("Write weights: %t to %s\n", parameters.writeWeights, parameters.fileName)
+   fmt.Printf("Write activations: %t to %s\n", parameters.writeActivations, parameters.activationsFileName)
 
    fmt.Printf("Network: %v, NumberTestCases: %d\n", 
               strings.Trim(strings.Join(strings.Fields(fmt.Sprint(parameters.activations)), "-"), ""), parameters.numTestCases)
@@ -360,7 +390,6 @@ func echoNetworkParameters()
    fmt.Printf("Train Mode: %t\n", parameters.trainMode)
    fmt.Printf("Weight Init: %d -- 1 = random, 2 = zero, 3 = manual, 4 = load from file, 5 = xavier \n", parameters.weightInit)
    fmt.Printf("Test Data: %t -- true = external, 2 = internal\n", parameters.externalTestData)
-   fmt.Printf("Keep Alive Every: %d, Save Weights Every: %d\n", parameters.keepAliveEvery, parameters.weightSaveEvery)
    fmt.Printf("Random Range [%v, %v]\n\n", parameters.weightLowerBound, parameters.weightUpperBound)
 } // func echoNetworkParameters()
 
@@ -765,7 +794,7 @@ func tanhDerivative(x float64) float64
 }
 
 /**
- * The RELU function calculates the relu activation of a given input value `x`. The relu activation function
+ * The ReLU function calculates the relu activation of a given input value `x`. The relu activation function
  * introduces non-linearity into a model.
  *
  * The relu of `x` follows the formula:
@@ -779,7 +808,7 @@ func tanhDerivative(x float64) float64
  */
 func relu(x float64) float64
 {
-   return math.Max(0, x)
+   return math.Max(0.0, x)
 }
  
 /**
@@ -806,7 +835,51 @@ func reluDerivative(x float64) float64
    {
       return 0.0
    }
+} // func reluDerivative(x float64) float64
+
+/**
+ * The ReLU6 function calculates the relu activation of a given input value `x`. The relu activation function
+ * introduces non-linearity into a model.
+ *
+ * The relu6 of `x` follows the formula:
+ * relu6(x) = max(0, min(x, 6))
+ *
+ * Parameters:
+ * - x: The input value for which to apply relu6 formula.
+ *
+ * Returns:
+ * - The relu6 activation of `x`, a float64 value in the range [0, x).
+ */
+func relu6(x float64) float64
+{
+   return math.Max(0.0, math.Min(x, 6.0))
 }
+ 
+/**
+ * The reluDerivative6 function computes the derivative of the relu6 activation function for a given input value `x`.
+ * The derivative is used the calculation for the delta weights through computing the psi variables.
+ *
+ * The derivative of the relu6 function is given by:
+ * 1 if x >= 0 and x <= 6
+ * 0 if x < 0
+ *
+ * Parameters:
+ * - x: The input value for which to apply the relu6 derivative formula.
+ *
+ * Returns:
+ * - The derivative of the relu6 function of `x`, a float64 value either 0 or 1.
+ */
+func relu6Derivative(x float64) float64
+{
+   if (x >= 0.0 && x <= 6.0)
+   {
+      return 1.0
+   }
+   else
+   {
+      return 0.0
+   }
+} // func relu6Derivative(x float64) float64
 
 /**
  * The linear function returns the given input value `x`. The linear activation function reverts the model back to linearity.
@@ -862,6 +935,10 @@ func assignActivationFunction()
    {
       activationFunction = relu
    } // else if (parameters.activationFunction == "relu")
+   else if (parameters.activationFunction == "relu6")
+   {
+      activationFunction = relu6
+   } // else if (parameters.activationFunction == "relu6")
    else
    {
       activationFunction = linear
@@ -887,6 +964,10 @@ func assignActivationPrime()
    {
       activationPrime = reluDerivative
    } // else if (parameters.activationFunction == "relu")
+   else if (parameters.activationFunction == "relu6")
+   {
+      activationPrime = relu6Derivative
+   } // else if (parameters.activationFunction == "relu6")
    else
    {
       activationPrime = linearDerivative
@@ -922,7 +1003,9 @@ func train(inputs [][]float64, expectedOutputs [][]float64)
    done = false
    
    epochError = math.MaxFloat64
+   previousEpochError = math.MaxFloat64
    epoch = 0
+   var etaString string = ""
 
    var input, alpha, beta, betaNought, i int
    var hiddenOne int = INPUT_LAYER + 1
@@ -952,8 +1035,8 @@ func train(inputs [][]float64, expectedOutputs [][]float64)
                for betaNought = 0; betaNought < parameters.activations[alpha + 1]; betaNought++
                {
                   omega += psis[alpha + 1][betaNought] * weights[alpha][beta][betaNought]
-                  weights[alpha][beta][betaNought] += parameters.learningRate * activations[alpha][beta]
-                                                      * psis[alpha + 1][betaNought]
+                  weights[alpha][beta][betaNought] += parameters.learningRate * activations[alpha][beta] * 
+                                                      psis[alpha + 1][betaNought]
                } // for betaNought = 0; betaNought < parameters.activations[alpha + 1]; betaNought++
 
                psis[alpha][beta] = omega * activationPrime(thetas[alpha][beta])
@@ -966,16 +1049,16 @@ func train(inputs [][]float64, expectedOutputs [][]float64)
             for betaNought = 0; betaNought < parameters.activations[hiddenTwo]; betaNought++
             {
                omega += psis[hiddenTwo][betaNought] * weights[hiddenOne][beta][betaNought]
-               weights[hiddenOne][beta][betaNought] += parameters.learningRate * activations[hiddenOne][beta]
-                                                      * psis[hiddenTwo][betaNought]
+               weights[hiddenOne][beta][betaNought] += parameters.learningRate * activations[hiddenOne][beta] * 
+                                                       psis[hiddenTwo][betaNought]
             } // for betaNought = 0; betaNought < parameters.activations[hiddenTwo]; betaNought++
 
             psis[hiddenOne][beta] = omega * activationPrime(thetas[hiddenOne][beta])
 
             for betaNought = 0; betaNought < inputNodes; betaNought++
             {
-               weights[INPUT_LAYER][betaNought][beta] += parameters.learningRate * activations[INPUT_LAYER][betaNought]
-                                                         * psis[hiddenOne][beta]
+               weights[INPUT_LAYER][betaNought][beta] += parameters.learningRate * activations[INPUT_LAYER][betaNought] * 
+                                                         psis[hiddenOne][beta]
             } // for betaNought = 0; betaNought < inputNodes; betaNought++
          } // for beta = 0; beta < parameters.activations[hiddenOne]; beta++
 
@@ -990,6 +1073,12 @@ func train(inputs [][]float64, expectedOutputs [][]float64)
 
       epochError /= float64(parameters.numTestCases)
       epoch++
+      if (parameters.estimateTrainTime)
+      {
+         etaString = fmt.Sprintf("ETA: %s", formatTime(computeTrainEstimate()))
+      } // if (parameters.estimateTrainTime)
+      previousEpochError = epochError
+
       done = epochError < parameters.errorThreshold || epoch > parameters.maxIterations
 
       if (epoch % parameters.weightSaveEvery == 0)
@@ -1000,7 +1089,7 @@ func train(inputs [][]float64, expectedOutputs [][]float64)
 
       if (epoch % parameters.keepAliveEvery == 0)
       {
-         fmt.Printf("Finished epoch %d with error %f\n", epoch, epochError)
+         fmt.Printf("Finished epoch %d with error %f. %s\n", epoch, epochError, etaString)
       } // if (epoch % parameters.keepAliveEvery == 0)
    } // for (!done)
    
@@ -1008,7 +1097,53 @@ func train(inputs [][]float64, expectedOutputs [][]float64)
 } // func train(inputs [][]float64, expectedOutputs [][]float64)
 
 /**
- * The testNetwork function runs the network for each input in the truth table, storing the network's predictions in the
+ * The `computeTrainEstimate` estimates the time remaining for network training using the errorThreshold paramter and the max
+ * max specified iterations. After computing the remaining epochs assuming the model reaches the error threshold and assuming
+ * the model reaches the max iterations, the function takes the min of the two calculates. With the remaining epochs, the function
+ * then computes the remaining train time using the average epoch duration.
+ *
+ * Return:
+ * - A float64 value representing the remaining train time in milliseconds.
+ *
+ * Limitations:
+ * - The function relies on and assumes the initialization of many global variables such as `duration`, `epochDuration`,
+ *    `previousDuration`, `errorChange`, `previousEpochError`, `epochError`, `averageTime`, `epoch`, etc.
+ */
+func computeTrainEstimate() float64
+{
+   duration = time.Since(trainStart).Seconds()
+
+   epochDuration = duration - previousDuration
+   previousDuration = duration
+
+   errorChange = previousEpochError - epochError
+
+   if (epoch == 0)
+   {
+      averageTime = epochDuration
+   } // if (epoch == 0)
+   else
+   {
+      averageTime = (averageTime * float64(epoch) + epochDuration) / float64(epoch + 1)
+   } // else
+
+   if (errorChange > 0)
+   {
+      predictedEpochs = (epochError - parameters.errorThreshold) / errorChange
+      remainingEpochs = math.Min(float64(predictedEpochs), float64(parameters.maxIterations - epoch))
+   } // if (errorChange > 0)
+   else
+   {
+      remainingEpochs = float64(parameters.maxIterations - epoch)
+   } // else
+
+   remaining = averageTime * remainingEpochs * MILLISECONDS_IN_SECOND
+
+   return remaining
+} // func computeTrainEstimate() float64
+
+/**
+ * The `testNetwork` function runs the network for each input in the truth table, storing the network's predictions in the
  * `testedOutputs` array. The function is used to test the network's performance after training.
  *
  * Limitations:
@@ -1276,9 +1411,8 @@ func checkError(err error)
 /**
  * The saveWeights function writes the network's weights to a file. The function opens a file for writing and writes the
  * network's architecture and weights to the file. The architecture is written as a string in the
- * format "input-hidden-hidden-output".
- * The input-shallow_hidden weights are written first, followed by the shallow_hidden-deep_hidden weights, followed by the
- * deep_hidden-output weights.
+ * format "[input, hidden-1, hidden-2, ..., output]".
+ * The weights are written in the same order as information propagates forward through the network.
  *
  * Syntax:
  * - os.Stat(filename string) checks if the file exists.
@@ -1350,7 +1484,7 @@ func saveWeights()
 /**
  * The loadWeights function reads the network's weights from a file. The function opens a file for reading and reads the
  * network's architecture and weights from the file. The architecture is read as a string in the
- * format "input-hidden-hidden-output".
+ * format "[input, hidden-1, hidden-2, ..., output]".
  * All of the weights for every connectivity layer are read in order of the network propagation rule. The function then
  * checks if the network's architecture matches the architecture in the weights file before reading in the weights.
  *
@@ -1404,6 +1538,76 @@ func loadWeights()
       } // for beta = 0; beta < parameters.activations[alpha]; beta++
    } // for alpha = INPUT_LAYER; alpha < outputLayer; alpha++
 } // func loadWeights()
+
+/**
+ * The saveActivations function writes the network's activations to a file. The function opens a file for writing and writes the
+ * network's architecture and activations to the file. The architecture is written as a string in the
+ * format "[input, hidden-1, hidden-2, ..., output]".
+ * The activations are written in order from the input activations to the output activations.
+ *
+ * Syntax:
+ * - os.Stat(filename string) checks if the file exists.
+ * - os.Create(filename string) creates a new file.
+ * - os.OpenFile(filename string, flag int, perm os.FileMode) opens a file for writing.
+ * - file.WriteString(s string) writes a string to the file.
+ * - error.Is(err error, target error) checks if the error is equal to the target error.
+ * - defer file.Close() defers the file's closure until the function returns.
+ * - os.Truncate(filename string, 0) clears the contents of a file.
+ *
+ * Process:
+ * 1. Checks if the file exists and creates a new file if it does not.
+ * 2. Opens the file for writing.
+ * 3. Writes the network's architecture to the file.
+ * 4. Writes the activations for the entire network to the file.
+ * 7. Closes the file.
+ */
+func saveActivations()
+{
+   var alpha, beta int
+   var file *os.File
+   var err error
+   var fileExists bool = false
+
+   _, err = os.Stat(parameters.activationsFileName)
+   if (err == nil)
+   {
+      fileExists = true
+
+      err = os.Truncate(parameters.activationsFileName, 0); // clear the file's content
+      checkError(err)
+   }
+
+   if (!fileExists && errors.Is(err, os.ErrNotExist))
+   {
+      file, err = os.Create(parameters.activationsFileName) // create the file
+      checkError(err)
+   }
+
+   file, err = os.OpenFile(parameters.activationsFileName, os.O_WRONLY, 0644) // open the file
+   checkError(err)
+
+   defer file.Close()
+
+   var layerString string = strings.Trim(strings.Join(strings.Fields(fmt.Sprint(parameters.activations)), "-"), "")
+
+   _, err = file.WriteString(layerString + "\n") // write network architecture to file
+   checkError(err)
+
+   _, err = file.WriteString("\n") // write new line to file
+   checkError(err)
+
+   for alpha = INPUT_LAYER; alpha <= outputLayer; alpha++
+   {
+      for beta = 0; beta < parameters.activations[alpha]; beta++
+      {
+         _, err = file.WriteString(fmt.Sprintf("%.17f\n", (*arrays.activations)[alpha][beta]))
+         checkError(err)
+      } // for beta = 0; beta < parameters.activations[alpha]; beta++
+
+      _, err = file.WriteString("\n") // write new line to file
+      checkError(err)
+   } // for alpha = INPUT_LAYER; alpha <= outputLayer; alpha++
+} // func saveActivations()
 
 /**
  * The customConfiguration function defines a custom configuration for the network's parameters. The function reads the

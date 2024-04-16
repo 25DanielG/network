@@ -18,12 +18,16 @@ weightInit 1
 writeWeights true
 fileName weights.txt
 
+writeActivations true
+activationsFileName activations.txt
+
 weightLowerBound 0.1
 weightUpperBound 1.5
 errorThreshold 2e-4
 maxIterations 100000
 weightSaveEvery 100000
 keepAliveEvery 100000
+estimateTrainTime true
 
 |  RUN PARAMETERS  |
 
