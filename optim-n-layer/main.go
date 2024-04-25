@@ -64,6 +64,7 @@ import
    "strings" // manipulate strings
 
    "github.com/spf13/viper" // viper for config parsing
+   "gonum.org/v1/gonum/mat"
 ) // import
 
 const MILLISECONDS_IN_SECOND float64 = 1000.0
@@ -107,6 +108,8 @@ type NetworkParameters struct
    fileName            string
    writeActivations    bool
    activationsFileName string
+   writeThetas         bool
+   thetasFileName      string
    activationFunction  string // sigmoid, tanh, linear, relu
    
    weightLowerBound float64
@@ -121,10 +124,10 @@ type NetworkParameters struct
 
 type NetworkArrays struct
 {
-   activations              *[][]float64
-   weights                  *[][][]float64
-   thetas                   *[][]float64
-   psis                     *[][]float64
+   activations              *[]*mat.Dense
+   weights                  *[]*mat.Dense
+   thetas                   *[]*mat.Dense
+   psis                     *[]*mat.Dense
 } // type NetworkArrays struct
 
 var parameters NetworkParameters
@@ -208,6 +211,11 @@ func main()
    {
       saveActivations()
    }
+
+   if (parameters.writeThetas)
+   {
+      saveThetas()
+   }
 } // func main()
 
 /**
@@ -279,6 +287,8 @@ func loadNetworkParameters()
    parameters.fileName = viper.GetString("fileName")
    parameters.writeActivations = viper.GetBool("writeActivations")
    parameters.activationsFileName = viper.GetString("activationsFileName")
+   parameters.writeThetas = viper.GetBool("writeThetas")
+   parameters.thetasFileName = viper.GetString("thetasFileName")
    parameters.activationFunction = viper.GetString("activationFunction")
    parameters.weightLowerBound = viper.GetFloat64("weightLowerBound")
    parameters.weightUpperBound = viper.GetFloat64("weightUpperBound")
@@ -334,6 +344,8 @@ func setNetworkParameters()
       fileName:              "weights.txt",
       writeActivations:      false,
       activationsFileName:   "activations.txt",
+      writeThetas:           true,
+      thetasFileName:        "thetas.txt",
       activationFunction:    "sigmoid",
       weightLowerBound:      0.1,
       weightUpperBound:      1.5,
@@ -413,49 +425,45 @@ func echoNetworkParameters()
  */
 func allocateNetworkMemory() (NetworkArrays, [][]float64, [][]float64, [][]float64)
 {
-   var alpha, beta, input, output int
+   var alpha, input, output int
 
    networkDepth = len(parameters.activations)
    inputNodes = parameters.activations[0]
    outputNodes = parameters.activations[networkDepth - 1]
    outputLayer = networkDepth - 1
-   
-   var activations [][]float64 = make([][]float64, networkDepth)
 
+   activations := make([]*mat.Dense, networkDepth)
+   weights := make([]*mat.Dense, networkDepth - 1)
+   var thetas []*mat.Dense = make([]*mat.Dense, networkDepth - 1)
+   var psis []*mat.Dense = make([]*mat.Dense, networkDepth)
+   
    for alpha = INPUT_LAYER; alpha < networkDepth; alpha++
    {
-      activations[alpha] = make([]float64, parameters.activations[alpha])
+      activations[alpha] = mat.NewDense(1, parameters.activations[alpha], nil)
    } // for alpha = INPUT_LAYER; alpha < networkDepth; alpha++
 
-   var weights [][][]float64 = make([][][]float64, networkDepth - 1)
-
-   for alpha = 0; alpha < networkDepth - 1; alpha++
+   for alpha = INPUT_LAYER; alpha < networkDepth - 1; alpha++
    {
-      weights[alpha] = make([][]float64, parameters.activations[alpha])
-      for beta = 0; beta < parameters.activations[alpha]; beta++
-      {
-         weights[alpha][beta] = make([]float64, parameters.activations[alpha + 1])
-      } // for beta = 0; beta < parameters.activations[alpha]; beta++
-   } // for alpha = 0; alpha < networkDepth - 1; alpha++
-   
-   var thetas, psis [][]float64
-   
+      rows := parameters.activations[alpha]
+      cols := parameters.activations[alpha + 1]
+      weights[alpha] = mat.NewDense(rows, cols, nil)
+   }
+
    if (parameters.trainMode)
    {
-      thetas = make([][]float64, networkDepth - 1)
+      thetas = make([]*mat.Dense, networkDepth - 1)
+      psis = make([]*mat.Dense, networkDepth)
 
       for alpha = INPUT_LAYER; alpha < networkDepth - 1; alpha++
       {
-         thetas[alpha] = make([]float64, parameters.activations[alpha])
+         thetas[alpha] = mat.NewDense(1, parameters.activations[alpha], nil)
       } // for alpha = INPUT_LAYER; alpha < networkDepth - 1; alpha++
-
-      psis = make([][]float64, networkDepth)
 
       for alpha = INPUT_LAYER + 1; alpha < networkDepth; alpha++
       {
-         psis[alpha] = make([]float64, parameters.activations[alpha])
+         psis[alpha] = mat.NewDense(parameters.activations[alpha], 1, nil)
       } // for alpha = INPUT_LAYER + 1; alpha < networkDepth; alpha++
-   } // if (parameters.trainMode)
+   }
    
    var inputTruthTable [][]float64 = make([][]float64, parameters.numTestCases)
    for input = range inputTruthTable
@@ -622,24 +630,26 @@ func populateNetworkMemory()
 
       for alpha = INPUT_LAYER; alpha < networkDepth - 1; alpha++
       {
+         var layerWeights *mat.Dense = (*arrays.weights)[alpha]
+
          for beta = 0; beta < parameters.activations[alpha]; beta++
          {
             for betaNought = 0; betaNought < parameters.activations[alpha + 1]; betaNought++
             {
-               (*arrays.weights)[alpha][beta][betaNought] = randomNumber(parameters.weightLowerBound, parameters.weightUpperBound)
+               layerWeights.Set(beta, betaNought, randomNumber(parameters.weightLowerBound, parameters.weightUpperBound))
             } // for betaNought = 0; betaNought < parameters.activations[alpha + 1]; betaNought++
          } // for beta = 0; beta < parameters.activations[alpha]; beta++
       } // for alpha = INPUT_LAYER; alpha < networkDepth - 1; alpha++
    } // if (parameters.weightInit == RANDOM_WEIGHTS)
    else if (parameters.weightInit == MANUAL_WEIGHTS)
    {
-      (*arrays.weights)[0][0][0] = 0.8
-      (*arrays.weights)[0][0][1] = 0.5
-      (*arrays.weights)[0][1][0] = 0.5
-      (*arrays.weights)[0][1][1] = 0.5
+      (*arrays.weights)[0].Set(0, 0, 0.8)
+      (*arrays.weights)[0].Set(0, 1, 0.5)
+      (*arrays.weights)[0].Set(1, 0, 0.5)
+      (*arrays.weights)[0].Set(1, 1, 0.5)
 
-      (*arrays.weights)[1][0][0] = -0.5
-      (*arrays.weights)[1][1][0] = 0.5
+      (*arrays.weights)[1].Set(0, 0, -0.5)
+      (*arrays.weights)[1].Set(1, 0, 0.5)
    } // else if (parameters.weightInit == MANUAL_WEIGHTS)
    else if (parameters.weightInit == LOAD_WEIGHTS)
    {
@@ -656,11 +666,13 @@ func populateNetworkMemory()
          var lowBound float64 = -distribution
          var highBound float64 = distribution
 
+         var layerWeights *mat.Dense = (*arrays.weights)[alpha]
+
          for beta = 0; beta < parameters.activations[alpha]; beta++
          {
             for betaNought = 0; betaNought < parameters.activations[alpha + 1]; betaNought++
             {
-               (*arrays.weights)[alpha][beta][betaNought] = randomNumber(lowBound, highBound)
+               layerWeights.Set(beta, betaNought, randomNumber(lowBound, highBound))
             } // for betaNought = 0; betaNought < parameters.activations[alpha + 1]; betaNought++
          } // for beta = 0; beta < parameters.activations[alpha]; beta++
       } // for alpha = INPUT_LAYER; alpha < outputLayer; alpha++
@@ -1007,16 +1019,16 @@ func train(inputs [][]float64, expectedOutputs [][]float64)
    epoch = 0
    var etaString string = ""
 
-   var input, alpha, beta, betaNought, i int
+   var input, alpha, i int
    var hiddenOne int = INPUT_LAYER + 1
    var hiddenTwo int = INPUT_LAYER + 2
 
    var omega float64
    
-   var activations [][]float64 = *arrays.activations
-   var thetas [][]float64 = *arrays.thetas
-   var psis [][]float64 = *arrays.psis
-   var weights [][][]float64 = *arrays.weights
+   activations := *arrays.activations
+   thetas := *arrays.thetas
+   psis := *arrays.psis
+   weights := *arrays.weights
    
    for (!done)
    {
@@ -1024,43 +1036,62 @@ func train(inputs [][]float64, expectedOutputs [][]float64)
       for input = 0; input < parameters.numTestCases; input++
       {
          inputError = 0.0
+         
+         inputMatrix := mat.NewDense(len(inputs[input]), 1, inputs[input])
+         outputMatrix := mat.NewDense(len(expectedOutputs[input]), 1, expectedOutputs[input])
 
-         runTrain(&activations, &thetas, &psis, &weights, &inputs[input], &expectedOutputs[input])
+         runTrain(activations, thetas, psis, weights, inputMatrix, outputMatrix)
 
          for alpha = outputLayer - 1; alpha > INPUT_LAYER + 1; alpha--
          {
-            for beta = 0; beta < parameters.activations[alpha]; beta++
-            {
-               omega = 0.0
-               for betaNought = 0; betaNought < parameters.activations[alpha + 1]; betaNought++
-               {
-                  omega += psis[alpha + 1][betaNought] * weights[alpha][beta][betaNought]
-                  weights[alpha][beta][betaNought] += parameters.learningRate * activations[alpha][beta] * 
-                                                      psis[alpha + 1][betaNought]
-               } // for betaNought = 0; betaNought < parameters.activations[alpha + 1]; betaNought++
+            psiMatrix := psis[alpha + 1]
+            weightsMatrix := weights[alpha]
 
-               psis[alpha][beta] = omega * activationPrime(thetas[alpha][beta])
-            } // for beta = 0; beta < parameters.activations[alpha]; beta++
+            weightTransposed := mat.DenseCopyOf(weightsMatrix)
+            newPsiMatrix := &mat.Dense{}
+            newPsiMatrix.Mul(weightTransposed, psiMatrix)
+
+            activationMatrix := activations[alpha].T()
+            deltaWeights := &mat.Dense{}
+         
+            deltaWeights.Mul(activationMatrix, psiMatrix.T())
+            deltaWeights.Scale(parameters.learningRate, deltaWeights)
+
+            weightsMatrix.Add(weightsMatrix, deltaWeights)
+
+            for i := 0; i < newPsiMatrix.RawMatrix().Rows; i++ {
+               originalVal := newPsiMatrix.At(i, 0)
+               activatedVal := originalVal * activationPrime(thetas[alpha].At(0, i))
+               psis[alpha].Set(i, 0, activatedVal)
+            }
          } // for alpha = outputLayer - 1; alpha > INPUT_LAYER + 1; alpha--
 
-         for beta = 0; beta < parameters.activations[hiddenOne]; beta++
-         {
-            omega = 0.0
-            for betaNought = 0; betaNought < parameters.activations[hiddenTwo]; betaNought++
-            {
-               omega += psis[hiddenTwo][betaNought] * weights[hiddenOne][beta][betaNought]
-               weights[hiddenOne][beta][betaNought] += parameters.learningRate * activations[hiddenOne][beta] * 
-                                                       psis[hiddenTwo][betaNought]
-            } // for betaNought = 0; betaNought < parameters.activations[hiddenTwo]; betaNought++
+         weightsTransposed := mat.DenseCopyOf(weights[hiddenOne].T())
+         newPsiMatrixHiddenOne := &mat.Dense{}
+         psiMatrixHiddenTwo := psis[hiddenTwo]
+         newPsiMatrixHiddenOne.Mul(weightsTransposed.T(), psiMatrixHiddenTwo)
 
-            psis[hiddenOne][beta] = omega * activationPrime(thetas[hiddenOne][beta])
+         deltaWeightsHiddenOneToHiddenTwo := &mat.Dense{}
+         activationMatrixHiddenOne := activations[hiddenOne].T()
 
-            for betaNought = 0; betaNought < inputNodes; betaNought++
-            {
-               weights[INPUT_LAYER][betaNought][beta] += parameters.learningRate * activations[INPUT_LAYER][betaNought] * 
-                                                         psis[hiddenOne][beta]
-            } // for betaNought = 0; betaNought < inputNodes; betaNought++
-         } // for beta = 0; beta < parameters.activations[hiddenOne]; beta++
+         deltaWeightsHiddenOneToHiddenTwo.Mul(activationMatrixHiddenOne, psiMatrixHiddenTwo.T())
+         deltaWeightsHiddenOneToHiddenTwo.Scale(parameters.learningRate, deltaWeightsHiddenOneToHiddenTwo)
+         weightsHiddenOneToHiddenTwo := weights[hiddenOne]
+         weightsHiddenOneToHiddenTwo.Add(weightsHiddenOneToHiddenTwo, deltaWeightsHiddenOneToHiddenTwo)
+
+         for i := 0; i < newPsiMatrixHiddenOne.RawMatrix().Rows; i++ {
+            originalVal := newPsiMatrixHiddenOne.At(i, 0)
+            activatedVal := originalVal * activationPrime(thetas[hiddenOne].At(0, i))
+            psis[hiddenOne].Set(i, 0, activatedVal)
+         }
+
+         deltaWeightsInputToHiddenOne := &mat.Dense{}
+         psiMatrixHiddenOne := psis[hiddenOne]
+         activationMatrixInput := activations[INPUT_LAYER].T()
+         deltaWeightsInputToHiddenOne.Mul(activationMatrixInput, psiMatrixHiddenOne.T())
+         deltaWeightsInputToHiddenOne.Scale(parameters.learningRate, deltaWeightsInputToHiddenOne)
+         weightsInputToHiddenOne := weights[INPUT_LAYER]
+         weightsInputToHiddenOne.Add(weightsInputToHiddenOne, deltaWeightsInputToHiddenOne)
 
          var num float64
          for i, num = range run(inputs[input])
@@ -1155,8 +1186,6 @@ func testNetwork()
    var index, inner int
    var input []float64
    var num float64
-   
-   fmt.Printf("Test network called with truth table of size %d and %d\n", len(truthTable), len(truthTable[0]))
 
    var errorr float64 = 0.0
    var inputError, omega float64
@@ -1166,7 +1195,6 @@ func testNetwork()
       inputError = 0.0
       for inner, num = range (run(input))
       {
-         fmt.Printf("Running with input: %v and got %v with %v\n", input, num, expectedOutputs[index])
          testedOutputs[index][inner] = num
 
          omega = expectedOutputs[index][inner] - num
@@ -1174,8 +1202,6 @@ func testNetwork()
       }
       errorr += inputError
    } // for index, input = range truthTable
-
-   fmt.Printf("Tested network with error: %f\n", (errorr / float64(parameters.numTestCases)))
 } // func testNetwork()
 
 /**
@@ -1244,32 +1270,38 @@ func reportResults()
  */
 func run(a []float64) []float64
 {
-   var alpha, beta, betaNought int
+   var alpha, beta int
    
    var theta float64
    
-   var activations [][]float64 = *arrays.activations
-   var weights [][][]float64 = *arrays.weights
+   var activations []*mat.Dense = *arrays.activations
+   var weights []*mat.Dense = *arrays.weights
    
-   for beta = 0; beta < parameters.activations[INPUT_LAYER]; beta++
-   {
-      activations[INPUT_LAYER][beta] = a[beta]
-   }
+   inputLayerActivations := mat.NewDense(len(a), 1, a)
+   activations[INPUT_LAYER].CloneFrom(inputLayerActivations)
 
    for alpha = INPUT_LAYER + 1; alpha <= outputLayer; alpha++
    {
+      layerActivations := mat.NewDense(parameters.activations[alpha], 1, nil)
+
       for beta = 0; beta < parameters.activations[alpha]; beta++
       {
-         theta = 0.0
-         for betaNought = 0; betaNought < parameters.activations[alpha - 1]; betaNought++
-         {
-            theta += activations[alpha - 1][betaNought] * weights[alpha - 1][betaNought][beta]
-         } // for betaNought = 0; betaNought < parameters.activations[alpha - 1]; betaNought++
-         activations[alpha][beta] = activationFunction(theta)
-      } // for beta = 0; beta < parameters.activations[alpha]; beta++
-   } // for alpha = INPUT_LAYER + 1; alpha <= outputLayer; alpha++
-   
-   return (*arrays.activations)[outputLayer]
+         activationVector := activations[alpha - 1].ColView(0)
+         weightVector := weights[alpha - 1].ColView(beta)
+            
+         theta = mat.Dot(activationVector, weightVector)
+            
+         layerActivations.Set(beta, 0, activationFunction(theta))
+      } 
+      activations[alpha] = layerActivations
+   }
+
+   outputActivations := activations[outputLayer]
+   rows, _ := outputActivations.Dims()
+   output := make([]float64, rows)
+   mat.Col(output, 0, outputActivations)
+
+   return output
 } // func run(a []float64) []float64
 
 /**
@@ -1295,45 +1327,56 @@ func run(a []float64) []float64
  * Limitations and Conditions:
  * - Assumes that the network's weights (`weights`) have been properly initialized.
  */
-func runTrain(activations *[][]float64, thetas *[][]float64, psis *[][]float64, weights *[][][]float64,
-              input *[]float64, outputs *[]float64)
-{
-   var alpha, beta, betaNought int
-   var omegaI, thetaI float64
-   
-   for beta = 0; beta < parameters.activations[INPUT_LAYER]; beta++
-   {
-      (*activations)[INPUT_LAYER][beta] = (*input)[beta]
-   }
+func runTrain(activations []*mat.Dense, thetas []*mat.Dense, psis []*mat.Dense, weights []*mat.Dense, input *mat.Dense, outputs *mat.Dense) {
+   var theta mat.Dense
+   var alpha, beta, rows, cols int
+
+   activations[INPUT_LAYER].CloneFrom(input.T())
 
    for alpha = INPUT_LAYER + 1; alpha < outputLayer; alpha++
    {
-      for beta = 0; beta < parameters.activations[alpha]; beta++
+      theta.Mul(activations[alpha - 1], weights[alpha - 1])
+
+      thetas[alpha] = mat.DenseCopyOf(&theta)
+
+      rows, cols = theta.Dims()
+
+      rows, cols = theta.Dims()
+      for i := 0; i < rows; i++
       {
-         (*thetas)[alpha][beta] = 0.0
-         for betaNought = 0; betaNought < parameters.activations[alpha - 1]; betaNought++
+         for j := 0; j < cols; j++
          {
-            (*thetas)[alpha][beta] += (*activations)[alpha - 1][betaNought] * (*weights)[alpha - 1][betaNought][beta]
-         } // for betaNought = 0; betaNought < parameters.activations[alpha - 1]; betaNought++
-         (*activations)[alpha][beta] = activationFunction((*thetas)[alpha][beta])
-      } // for beta = 0; beta < parameters.activations[alpha]; beta++
-   } // for alpha = INPUT_LAYER + 1; alpha < outputLayer; alpha++
+            theta.Set(i, j, activationFunction(theta.At(i, j)))
+         }
+      }
+
+      activations[alpha] = mat.DenseCopyOf(&theta)
+      theta.Reset()
+   }
 
    alpha = outputLayer
+   theta.Mul(activations[alpha - 1], weights[alpha - 1])
 
-   for beta = 0; beta < parameters.activations[alpha]; beta++
-   {
-      thetaI = 0.0
-      for betaNought = 0; betaNought < parameters.activations[alpha - 1]; betaNought++
-      {
-         thetaI += (*activations)[alpha - 1][betaNought] * (*weights)[alpha - 1][betaNought][beta]
-      } // for betaNought = 0; betaNought < parameters.activations[alpha - 1]; betaNought++
+   rows, cols = theta.Dims()
+   for i := 0; i < rows; i++ {
+      for j := 0; j < cols; j++ {
+         theta.Set(i, j, activationFunction(theta.At(i, j)))
+      }
+   }
 
-      (*activations)[alpha][beta] = activationFunction(thetaI)
-      omegaI = (*outputs)[beta] - (*activations)[alpha][beta]
-      (*psis)[alpha][beta] = omegaI * activationPrime(thetaI)
-   } // for beta = 0; beta < parameters.activations[alpha]; beta++
-} // func runTrain(activations *[][]float64...
+   activations[alpha] = mat.DenseCopyOf(&theta)
+
+   var outputMatrix mat.Matrix = outputs.T()
+
+   _, cols = outputMatrix.Dims()
+   
+   for beta = 0; beta < cols; beta++ {
+      thetaVal := theta.At(0, beta)
+      outputVal := outputMatrix.At(0, beta)
+      omegaI := outputVal - thetaVal
+      psis[alpha].Set(beta, 0, omegaI * activationPrime(thetaVal))
+   }
+}
 
 /**
  * The formatTime function converts a duration in milliseconds into a readable string format, choosing the most appropriate
@@ -1481,11 +1524,12 @@ func saveWeights()
 
    for alpha = INPUT_LAYER; alpha < outputLayer; alpha++
    {
+      layerWeights := (*arrays.weights)[alpha]
       for beta = 0; beta < parameters.activations[alpha]; beta++
       {
          for betaNought = 0; betaNought < parameters.activations[alpha + 1]; betaNought++
          {
-            _, err = file.WriteString(fmt.Sprintf("%.17f\n", (*arrays.weights)[alpha][beta][betaNought]))
+            _, err = file.WriteString(fmt.Sprintf("%.17f\n", layerWeights.At(beta, betaNought)))
             checkError(err)
          } // for betaNought = 0; betaNought < parameters.activations[alpha + 1]; betaNought++
       } // for beta = 0; beta < parameters.activations[alpha]; beta++
@@ -1515,6 +1559,7 @@ func loadWeights()
    var err error
    var fileExists bool = false
    var alpha, beta, betaNought int
+   var weight float64
 
    _, err = os.Stat(parameters.fileName)
    if (!fileExists && errors.Is(err, os.ErrNotExist))
@@ -1542,12 +1587,14 @@ func loadWeights()
 
    for alpha = INPUT_LAYER; alpha < outputLayer; alpha++
    {
+      layerWeights := (*arrays.weights)[alpha]
       for beta = 0; beta < parameters.activations[alpha]; beta++
       {
          for betaNought = 0; betaNought < parameters.activations[alpha + 1]; betaNought++
          {
-            _, err = fmt.Fscan(file, &(*arrays.weights)[alpha][beta][betaNought])
+            _, err = fmt.Fscan(file, &weight)
             checkError(err)
+            layerWeights.Set(beta, betaNought, weight)
          } // for betaNought = 0; betaNought < parameters.activations[alpha + 1]; betaNought++
       } // for beta = 0; beta < parameters.activations[alpha]; beta++
    } // for alpha = INPUT_LAYER; alpha < outputLayer; alpha++
@@ -1612,9 +1659,81 @@ func saveActivations()
 
    for alpha = INPUT_LAYER; alpha <= outputLayer; alpha++
    {
+      layerActivations := (*arrays.activations)[alpha]
       for beta = 0; beta < parameters.activations[alpha]; beta++
       {
-         _, err = file.WriteString(fmt.Sprintf("%.17f\n", (*arrays.activations)[alpha][beta]))
+         _, err = file.WriteString(fmt.Sprintf("%.17f\n", layerActivations.At(0, beta)))
+         checkError(err)
+      } // for beta = 0; beta < parameters.activations[alpha]; beta++
+
+      _, err = file.WriteString("\n") // write new line to file
+      checkError(err)
+   } // for alpha = INPUT_LAYER; alpha <= outputLayer; alpha++
+} // func saveActivations()
+
+/**
+ * The saveThetas function writes the network's activations to a file. The function opens a file for writing and writes the
+ * network's architecture and thetas to the file. The architecture is written as a string in the
+ * format "[input, hidden-1, hidden-2, ..., output]".
+ * The thetas are written in order from the input thetas to the output thetas.
+ *
+ * Syntax:
+ * - os.Stat(filename string) checks if the file exists.
+ * - os.Create(filename string) creates a new file.
+ * - os.OpenFile(filename string, flag int, perm os.FileMode) opens a file for writing.
+ * - file.WriteString(s string) writes a string to the file.
+ * - error.Is(err error, target error) checks if the error is equal to the target error.
+ * - defer file.Close() defers the file's closure until the function returns.
+ * - os.Truncate(filename string, 0) clears the contents of a file.
+ *
+ * Process:
+ * 1. Checks if the file exists and creates a new file if it does not.
+ * 2. Opens the file for writing.
+ * 3. Writes the network's architecture to the file.
+ * 4. Writes the thetas for the entire network to the file.
+ * 7. Closes the file.
+ */
+func saveThetas()
+{
+   var alpha, beta int
+   var file *os.File
+   var err error
+   var fileExists bool = false
+
+   _, err = os.Stat(parameters.thetasFileName)
+   if (err == nil)
+   {
+      fileExists = true
+
+      err = os.Truncate(parameters.thetasFileName, 0); // clear the file's content
+      checkError(err)
+   }
+
+   if (!fileExists && errors.Is(err, os.ErrNotExist))
+   {
+      file, err = os.Create(parameters.thetasFileName) // create the file
+      checkError(err)
+   }
+
+   file, err = os.OpenFile(parameters.thetasFileName, os.O_WRONLY, 0644) // open the file
+   checkError(err)
+
+   defer file.Close()
+
+   var layerString string = strings.Trim(strings.Join(strings.Fields(fmt.Sprint(parameters.activations)), "-"), "")
+
+   _, err = file.WriteString(layerString + "\n") // write network architecture to file
+   checkError(err)
+
+   _, err = file.WriteString("\n") // write new line to file
+   checkError(err)
+
+   for alpha = INPUT_LAYER; alpha < outputLayer; alpha++
+   {
+      layerThetas := (*arrays.thetas)[alpha]
+      for beta = 0; beta < parameters.activations[alpha]; beta++
+      {
+         _, err = file.WriteString(fmt.Sprintf("%.17f\n", layerThetas.At(0, beta)))
          checkError(err)
       } // for beta = 0; beta < parameters.activations[alpha]; beta++
 

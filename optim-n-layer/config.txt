@@ -4,7 +4,7 @@
 
 | LAYER PARAMETERS |
 
-activations [2,5,10,3]
+activations [2,2,3]
 
 | TRAIN PARAMETERS |
 
@@ -18,8 +18,11 @@ weightInit 1
 writeWeights true
 fileName weights.txt
 
-writeActivations true
+writeActivations false
 activationsFileName activations.txt
+
+writeThetas false
+thetasFileName thetas.txt
 
 weightLowerBound 0.1
 weightUpperBound 1.5
