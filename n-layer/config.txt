@@ -4,7 +4,7 @@
 
 | LAYER PARAMETERS |
 
-activations [2,5,10,3]
+activations [2,5,3]
 
 | TRAIN PARAMETERS |
 
@@ -13,7 +13,7 @@ learningRate 0.3
 activationFunction sigmoid
 
 // 1 Random, 2 Zero, 3 Manual, 4 Load from file, 5 Xavier
-weightInit 1
+weightInit 2
 
 writeWeights true
 fileName weights.txt
@@ -24,7 +24,7 @@ activationsFileName activations.txt
 weightLowerBound 0.1
 weightUpperBound 1.5
 errorThreshold 2e-4
-maxIterations 100000
+maxIterations 1000
 weightSaveEvery 100000
 keepAliveEvery 5000
 estimateTrainTime false

@@ -45,8 +45,9 @@
  * 28. loadWeights
  * 29. saveWeights
  * 30. saveActivations
- * 31. customConfiguration
- * 32. parseActivations
+ * 31. saveThetas
+ * 32. customConfiguration
+ * 33. parseActivations
  */
 
 package main

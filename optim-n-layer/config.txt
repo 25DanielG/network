@@ -4,7 +4,7 @@
 
 | LAYER PARAMETERS |
 
-activations [2,2,3]
+activations [2,1000,10000,1000,3]
 
 | TRAIN PARAMETERS |
 
@@ -27,7 +27,7 @@ thetasFileName thetas.txt
 weightLowerBound 0.1
 weightUpperBound 1.5
 errorThreshold 2e-4
-maxIterations 100000
+maxIterations 1000
 weightSaveEvery 100000
 keepAliveEvery 5000
 estimateTrainTime false
