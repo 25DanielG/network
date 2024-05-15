@@ -1232,21 +1232,21 @@ func reportResults()
       }
    } // if (parameters.trainMode)
 
-   var input []float64
+   // var input []float64
    var index int
 
    if (parameters.trainMode)
    {
-      for index, input = range truthTable
+      for index, _ = range truthTable
       {
-         fmt.Printf("Input: %v, Expected: %f, Predicted: %.17f\n", input, expectedOutputs[index], testedOutputs[index])
+         fmt.Printf("Input: , Expected: %f, Predicted: %.17f\n", expectedOutputs[index], testedOutputs[index])
       }
    } // if (parameters.trainMode)
    else
    {
-      for index, input = range truthTable
+      for index, _ = range truthTable
       {
-         fmt.Printf("Input: %v, Predicted: %.17f\n", input, testedOutputs[index])
+         fmt.Printf("Input: , Predicted: %.17f\n", testedOutputs[index])
       }
    } // else
 } // func reportResults()

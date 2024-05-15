@@ -5,14 +5,14 @@
 | LAYER PARAMETERS |
 
 numInputNodes 2
-numHiddenOneNodes 5
-numHiddenTwoNodes 5
+numHiddenOneNodes 30
+numHiddenTwoNodes 20
 numOutputNodes 3
 
 | TRAIN PARAMETERS |
 
 trainMode true
-learningRate 0.3
+learningRate 0.5
 activationFunction sigmoid
 
 // 1 Random, 2 Zero, 3 Manual, 4 Load from file, 5 Xavier
@@ -21,12 +21,12 @@ weightInit 1
 writeWeights true
 fileName weights.txt
 
-weightLowerBound 0.1
+weightLowerBound -1.5
 weightUpperBound 1.5
 errorThreshold 2e-4
 maxIterations 100000
-weightSaveEvery 100000
-keepAliveEvery 100000
+weightSaveEvery 10000
+keepAliveEvery 1000
 
 |  RUN PARAMETERS  |
 

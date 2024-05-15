@@ -4,13 +4,13 @@
 
 | LAYER PARAMETERS |
 
-activations [2,1000,10000,1000,3]
+activations [10000,30,20,5]
 
 | TRAIN PARAMETERS |
 
 trainMode true
-learningRate 0.3
-activationFunction sigmoid
+learningRate 0.5
+activationFunction relu6
 
 // 1 Random, 2 Zero, 3 Manual, 4 Load from file, 5 Xavier
 weightInit 1
@@ -24,16 +24,16 @@ activationsFileName activations.txt
 writeThetas false
 thetasFileName thetas.txt
 
-weightLowerBound 0.1
+weightLowerBound -1.5
 weightUpperBound 1.5
 errorThreshold 2e-4
-maxIterations 1000
-weightSaveEvery 100000
-keepAliveEvery 5000
-estimateTrainTime false
+maxIterations 10000
+weightSaveEvery 1000
+keepAliveEvery 500
+estimateTrainTime true
 
 |  RUN PARAMETERS  |
 
-numTestCases 4
+numTestCases 25
 externalTestData true
-testDataFile dataAll.txt
+testDataFile dataImages.txt

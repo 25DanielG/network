@@ -1,0 +1,5 @@
+:1_test6.txt | 1 0 0 0 0
+:2_test6.txt | 0 1 0 0 0
+:3_test6.txt | 0 0 1 0 0
+:4_test6.txt | 0 0 0 1 0
+:5_test6.txt | 0 0 0 0 1

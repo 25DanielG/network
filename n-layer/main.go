@@ -389,7 +389,7 @@ func echoNetworkParameters()
    fmt.Printf("Activation Function: %s\n", parameters.activationFunction)
    fmt.Printf("Train Mode: %t\n", parameters.trainMode)
    fmt.Printf("Weight Init: %d -- 1 = random, 2 = zero, 3 = manual, 4 = load from file, 5 = xavier \n", parameters.weightInit)
-   fmt.Printf("Test Data: %t -- true = external, 2 = internal\n", parameters.externalTestData)
+   fmt.Printf("Test Data: %t -- true = external, false = internal\n", parameters.externalTestData)
    fmt.Printf("Random Range [%v, %v]\n\n", parameters.weightLowerBound, parameters.weightUpperBound)
 } // func echoNetworkParameters()
 
@@ -557,13 +557,15 @@ func loadTestData()
          checkError(err)
 
          var activationsScanner *bufio.Scanner = bufio.NewScanner(dataFile)
-         activationsScanner.Scan()
-         var activationsLine string = activationsScanner.Text()
 
-         for m = 0; m < inputNodes; m++
+         for m = 0; m < inputNodes && activationsScanner.Scan(); m++
          {
-            truthTable[test][m], _ = strconv.ParseFloat(activationsLine, BITS_IN_FLOAT64)
+            var activationsLine string = activationsScanner.Text()
+            truthTable[test][m], err = strconv.ParseFloat(activationsLine, BITS_IN_FLOAT64)
+            checkError(err)
          } // for m = 0; m < inputNodes; m++
+
+         dataFile.Close()
 
          for i = 0; i < outputNodes; i++
          {
@@ -1062,10 +1064,9 @@ func train(inputs [][]float64, expectedOutputs [][]float64)
             } // for betaNought = 0; betaNought < inputNodes; betaNought++
          } // for beta = 0; beta < parameters.activations[hiddenOne]; beta++
 
-         var num float64
-         for i, num = range run(inputs[input])
+         for i = range run(inputs[input])
          {
-            omega = expectedOutputs[input][i] - num
+            omega = expectedOutputs[input][i] - activations[outputLayer][i]
             inputError += 0.5 * omega * omega
          } // for i = range run(inputs[input])
 
@@ -1156,26 +1157,13 @@ func testNetwork()
    var input []float64
    var num float64
    
-   fmt.Printf("Test network called with truth table of size %d and %d\n", len(truthTable), len(truthTable[0]))
-
-   var errorr float64 = 0.0
-   var inputError, omega float64
-
    for index, input = range truthTable
    {
-      inputError = 0.0
       for inner, num = range (run(input))
       {
-         fmt.Printf("Running with input: %v and got %v with %v\n", input, num, expectedOutputs[index])
          testedOutputs[index][inner] = num
-
-         omega = expectedOutputs[index][inner] - num
-         inputError += 0.5 * omega * omega
       }
-      errorr += inputError
    } // for index, input = range truthTable
-
-   fmt.Printf("Tested network with error: %f\n", (errorr / float64(parameters.numTestCases)))
 } // func testNetwork()
 
 /**
@@ -1205,21 +1193,21 @@ func reportResults()
       }
    } // if (parameters.trainMode)
 
-   var input []float64
+   // var input []float64
    var index int
 
    if (parameters.trainMode)
    {
-      for index, input = range truthTable
+      for index, _ = range truthTable
       {
-         fmt.Printf("Input: %v, Expected: %f, Predicted: %.17f\n", input, expectedOutputs[index], testedOutputs[index])
+         fmt.Printf("Expected: %f, Predicted: %.17f\n", expectedOutputs[index], testedOutputs[index])
       }
    } // if (parameters.trainMode)
    else
    {
-      for index, input = range truthTable
+      for index, _ = range truthTable
       {
-         fmt.Printf("Input: %v, Predicted: %.17f\n", input, testedOutputs[index])
+         fmt.Printf("Expected: %f, Predicted: %.17f\n", expectedOutputs[index], testedOutputs[index])
       }
    } // else
 } // func reportResults()
