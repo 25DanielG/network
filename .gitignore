@@ -4,3 +4,4 @@ main.go_[0-9]*
 **/thetas.txt
 weights.txt
 optim-n-layer/weights.txt
+network.git
