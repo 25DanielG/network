@@ -1,0 +1,179 @@
+(base) danielgergov@Daniels-Air-4 n-layer % ./main.go_1006588 
+No config file provided. Defaulting to: config.txt.
+Usage: ./main.go <filename>
+Network Parameters:
+-------------------
+λ: 0.3, Error Threshold: 2e-06, Max Iterations: 100000
+Keep Alive Every: 500, Save Weights Every: 10000
+Compute a training ETA: true
+Write weights: true to weights.txt
+Write activations: false to activations.txt
+Network: [10000-50-30-10-5], NumberTestCases: 25
+Activation Function: sigmoid
+Train Mode: true
+Weight Init: 5 -- 1 = random, 2 = zero, 3 = manual, 4 = load from file, 5 = xavier 
+Test Data: true -- true = external, false = internal
+Random Range [-1.5, 1.5]
+
+Finished epoch 500 with error 0.001181. ETA: 1.166065 minutes
+Finished epoch 1000 with error 0.000482. ETA: 2.168747 minutes
+Finished epoch 1500 with error 0.000282. ETA: 3.416524 minutes
+Finished epoch 2000 with error 0.000196. ETA: 4.601278 minutes
+Finished epoch 2500 with error 0.000147. ETA: 5.753678 minutes
+Finished epoch 3000 with error 0.000117. ETA: 7.132515 minutes
+Finished epoch 3500 with error 0.000097. ETA: 8.506896 minutes
+Finished epoch 4000 with error 0.000083. ETA: 9.897995 minutes
+Finished epoch 4500 with error 0.000072. ETA: 11.320624 minutes
+Finished epoch 5000 with error 0.000064. ETA: 12.750176 minutes
+Finished epoch 5500 with error 0.000057. ETA: 14.391603 minutes
+Finished epoch 6000 with error 0.000052. ETA: 15.810646 minutes
+Finished epoch 6500 with error 0.000048. ETA: 17.224719 minutes
+Finished epoch 7000 with error 0.000044. ETA: 18.644253 minutes
+Finished epoch 7500 with error 0.000041. ETA: 20.059367 minutes
+Finished epoch 8000 with error 0.000038. ETA: 21.561600 minutes
+Finished epoch 8500 with error 0.000036. ETA: 23.016300 minutes
+Finished epoch 9000 with error 0.000034. ETA: 23.966179 minutes
+Finished epoch 9500 with error 0.000032. ETA: 24.851431 minutes
+Weights saved...
+Finished epoch 10000 with error 0.000030. ETA: 25.773757 minutes
+Finished epoch 10500 with error 0.000029. ETA: 26.655708 minutes
+Finished epoch 11000 with error 0.000027. ETA: 27.554449 minutes
+Finished epoch 11500 with error 0.000026. ETA: 28.394960 minutes
+Finished epoch 12000 with error 0.000025. ETA: 29.256853 minutes
+Finished epoch 12500 with error 0.000024. ETA: 30.086217 minutes
+Finished epoch 13000 with error 0.000023. ETA: 30.955914 minutes
+Finished epoch 13500 with error 0.000022. ETA: 31.794375 minutes
+Finished epoch 14000 with error 0.000021. ETA: 32.635827 minutes
+Finished epoch 14500 with error 0.000021. ETA: 33.423298 minutes
+Finished epoch 15000 with error 0.000020. ETA: 34.227019 minutes
+Finished epoch 15500 with error 0.000019. ETA: 35.018308 minutes
+Finished epoch 16000 with error 0.000019. ETA: 35.787348 minutes
+Finished epoch 16500 with error 0.000018. ETA: 36.590214 minutes
+Finished epoch 17000 with error 0.000018. ETA: 37.354108 minutes
+Finished epoch 17500 with error 0.000017. ETA: 38.134429 minutes
+Finished epoch 18000 with error 0.000017. ETA: 38.885914 minutes
+Finished epoch 18500 with error 0.000016. ETA: 39.659393 minutes
+Finished epoch 19000 with error 0.000016. ETA: 40.428996 minutes
+Finished epoch 19500 with error 0.000015. ETA: 41.156687 minutes
+Weights saved...
+Finished epoch 20000 with error 0.000015. ETA: 41.900076 minutes
+Finished epoch 20500 with error 0.000015. ETA: 42.620283 minutes
+Finished epoch 21000 with error 0.000014. ETA: 43.338380 minutes
+Finished epoch 21500 with error 0.000014. ETA: 44.030851 minutes
+Finished epoch 22000 with error 0.000014. ETA: 44.722758 minutes
+Finished epoch 22500 with error 0.000013. ETA: 45.370759 minutes
+Finished epoch 23000 with error 0.000013. ETA: 46.009808 minutes
+Finished epoch 23500 with error 0.000013. ETA: 46.679518 minutes
+Finished epoch 24000 with error 0.000013. ETA: 47.359712 minutes
+Finished epoch 24500 with error 0.000012. ETA: 47.996779 minutes
+Finished epoch 25000 with error 0.000012. ETA: 48.618350 minutes
+Finished epoch 25500 with error 0.000012. ETA: 49.235070 minutes
+Finished epoch 26000 with error 0.000012. ETA: 49.838593 minutes
+Finished epoch 26500 with error 0.000011. ETA: 50.459111 minutes
+Finished epoch 27000 with error 0.000011. ETA: 51.045006 minutes
+Finished epoch 27500 with error 0.000011. ETA: 51.651262 minutes
+Finished epoch 28000 with error 0.000011. ETA: 52.232945 minutes
+Finished epoch 28500 with error 0.000011. ETA: 52.804751 minutes
+Finished epoch 29000 with error 0.000010. ETA: 53.370461 minutes
+Finished epoch 29500 with error 0.000010. ETA: 53.926471 minutes
+Weights saved...
+Finished epoch 30000 with error 0.000010. ETA: 54.472367 minutes
+Finished epoch 30500 with error 0.000010. ETA: 55.045100 minutes
+Finished epoch 31000 with error 0.000010. ETA: 55.571256 minutes
+Finished epoch 31500 with error 0.000010. ETA: 56.135167 minutes
+Finished epoch 32000 with error 0.000009. ETA: 56.656497 minutes
+Finished epoch 32500 with error 0.000009. ETA: 57.169999 minutes
+Finished epoch 33000 with error 0.000009. ETA: 57.685881 minutes
+Finished epoch 33500 with error 0.000009. ETA: 58.189866 minutes
+Finished epoch 34000 with error 0.000009. ETA: 58.683052 minutes
+Finished epoch 34500 with error 0.000009. ETA: 59.167462 minutes
+Finished epoch 35000 with error 0.000009. ETA: 59.677011 minutes
+Finished epoch 35500 with error 0.000009. ETA: 1.004799 hours
+Finished epoch 36000 with error 0.000008. ETA: 1.014090 hours
+Finished epoch 36500 with error 0.000008. ETA: 1.024372 hours
+Finished epoch 37000 with error 0.000008. ETA: 1.034360 hours
+Finished epoch 37500 with error 0.000008. ETA: 1.044374 hours
+Finished epoch 38000 with error 0.000008. ETA: 1.052534 hours
+Finished epoch 38500 with error 0.000008. ETA: 1.060445 hours
+Finished epoch 39000 with error 0.000008. ETA: 1.068371 hours
+Finished epoch 39500 with error 0.000008. ETA: 1.075567 hours
+Weights saved...
+Finished epoch 40000 with error 0.000008. ETA: 1.082470 hours
+Finished epoch 40500 with error 0.000008. ETA: 1.090366 hours
+Finished epoch 41000 with error 0.000007. ETA: 1.097872 hours
+Finished epoch 41500 with error 0.000007. ETA: 1.104999 hours
+Finished epoch 42000 with error 0.000007. ETA: 1.111613 hours
+Finished epoch 42500 with error 0.000007. ETA: 1.118163 hours
+Finished epoch 43000 with error 0.000007. ETA: 1.124795 hours
+Finished epoch 43500 with error 0.000007. ETA: 1.131751 hours
+Finished epoch 44000 with error 0.000007. ETA: 1.138581 hours
+Finished epoch 44500 with error 0.000007. ETA: 1.144955 hours
+Finished epoch 45000 with error 0.000007. ETA: 1.150947 hours
+Finished epoch 45500 with error 0.000007. ETA: 1.157232 hours
+Finished epoch 46000 with error 0.000007. ETA: 1.163014 hours
+Finished epoch 46500 with error 0.000007. ETA: 1.169634 hours
+Finished epoch 47000 with error 0.000007. ETA: 1.182797 hours
+Finished epoch 47500 with error 0.000006. ETA: 1.195285 hours
+Finished epoch 48000 with error 0.000006. ETA: 1.207571 hours
+Finished epoch 48500 with error 0.000006. ETA: 1.219780 hours
+Finished epoch 49000 with error 0.000006. ETA: 1.231751 hours
+Finished epoch 49500 with error 0.000006. ETA: 1.242863 hours
+Weights saved...
+Finished epoch 50000 with error 0.000006. ETA: 1.253923 hours
+^C
+(base) danielgergov@Daniels-Air-4 n-layer % ./main.go_1006588 configValidate.txt 
+Network Parameters:
+-------------------
+Write weights: true to weights.txt
+Write activations: false to activations.txt
+Network: [10000-50-30-10-5], NumberTestCases: 5
+Activation Function: sigmoid
+Train Mode: false
+Weight Init: 4 -- 1 = random, 2 = zero, 3 = manual, 4 = load from file, 5 = xavier 
+Test Data: true -- true = external, false = internal
+Random Range [-1.5, 1.5]
+
+Predicted: [0.99779437860812126 0.00114668363693580 0.00001352769444649 0.00081699126258766 0.00180475756596193]
+Predicted: [0.00188860426169127 0.99659503847279263 0.00205083765379823 0.00141556255667233 0.00000001798385362]
+Predicted: [0.00000750228362541 0.00213267917889953 0.99656657771983770 0.00000605345097594 0.00095446223928308]
+Predicted: [0.00183076042337556 0.00086402142043136 0.00000016395510003 0.99783319227986889 0.00172336237934682]
+Predicted: [0.00028328213465041 0.00000014162202867 0.00222440225139879 0.00175771752038292 0.99764598898976442]
+(base) danielgergov@Daniels-Air-4 n-layer % ./main.go_1006588 
+No config file provided. Defaulting to: config.txt.
+Usage: ./main.go <filename>
+Network Parameters:
+-------------------
+Write weights: true to weights.txt
+Write activations: false to activations.txt
+Network: [10000-50-30-10-5], NumberTestCases: 25
+Activation Function: sigmoid
+Train Mode: false
+Weight Init: 4 -- 1 = random, 2 = zero, 3 = manual, 4 = load from file, 5 = xavier 
+Test Data: true -- true = external, false = internal
+Random Range [-1.5, 1.5]
+
+Expected: [1.000000 0.000000 0.000000 0.000000 0.000000], Predicted: [0.99777069662337070 0.00126256630962265 0.00001331718811927 0.00088252557321832 0.00166037262975561]
+Expected: [1.000000 0.000000 0.000000 0.000000 0.000000], Predicted: [0.99783821421475005 0.00125681458276877 0.00001303666062866 0.00090758349308395 0.00167672057598722]
+Expected: [1.000000 0.000000 0.000000 0.000000 0.000000], Predicted: [0.99779047844859536 0.00138487369940531 0.00001255787906582 0.00098930322649678 0.00153728725579582]
+Expected: [1.000000 0.000000 0.000000 0.000000 0.000000], Predicted: [0.99784032726999550 0.00123916073958364 0.00001309843102511 0.00089581325024688 0.00169695263441471]
+Expected: [1.000000 0.000000 0.000000 0.000000 0.000000], Predicted: [0.99780506711508687 0.00127081369027748 0.00001301862740622 0.00090344992536862 0.00165468401982343]
+Expected: [0.000000 1.000000 0.000000 0.000000 0.000000], Predicted: [0.00141854262913666 0.99784598317046802 0.00215103827269049 0.00149944035624112 0.00000000933090526]
+Expected: [0.000000 1.000000 0.000000 0.000000 0.000000], Predicted: [0.00142762745762642 0.99793370803347814 0.00200078181538823 0.00165994383231717 0.00000000953014010]
+Expected: [0.000000 1.000000 0.000000 0.000000 0.000000], Predicted: [0.00140250714143813 0.99793273664710380 0.00210703213689725 0.00154877450211258 0.00000000898980290]
+Expected: [0.000000 1.000000 0.000000 0.000000 0.000000], Predicted: [0.00140628426986136 0.99789395434022887 0.00213587285342386 0.00152387058814889 0.00000000909691819]
+Expected: [0.000000 1.000000 0.000000 0.000000 0.000000], Predicted: [0.00143263911004564 0.99789963972552898 0.00207238732519941 0.00155971205960895 0.00000000931331369]
+Expected: [0.000000 0.000000 1.000000 0.000000 0.000000], Predicted: [0.00000693926303144 0.00189782156901269 0.99735523894292455 0.00000574997743608 0.00171145073608047]
+Expected: [0.000000 0.000000 1.000000 0.000000 0.000000], Predicted: [0.00000715132792621 0.00193099992013092 0.99745743429919009 0.00000538887272185 0.00176793489188969]
+Expected: [0.000000 0.000000 1.000000 0.000000 0.000000], Predicted: [0.00000715358155667 0.00190301125555540 0.99751061865144020 0.00000533595826750 0.00181053925377171]
+Expected: [0.000000 0.000000 1.000000 0.000000 0.000000], Predicted: [0.00000735605580383 0.00189234379951971 0.99752642589511986 0.00000516705958099 0.00187213985029597]
+Expected: [0.000000 0.000000 1.000000 0.000000 0.000000], Predicted: [0.00000719941006862 0.00189811675757111 0.99743419880930717 0.00000541370958051 0.00176492769608014]
+Expected: [0.000000 0.000000 0.000000 1.000000 0.000000], Predicted: [0.00151370371190971 0.00101992092281807 0.00000016685292495 0.99767477072193689 0.00159532466155681]
+Expected: [0.000000 0.000000 0.000000 1.000000 0.000000], Predicted: [0.00147738950241397 0.00105287631927512 0.00000016751900866 0.99763488984332316 0.00156891760153124]
+Expected: [0.000000 0.000000 0.000000 1.000000 0.000000], Predicted: [0.00165439546965076 0.00093494681232853 0.00000016356913899 0.99778684551861052 0.00165733210560152]
+Expected: [0.000000 0.000000 0.000000 1.000000 0.000000], Predicted: [0.00156394009381902 0.00097319704560809 0.00000016380451668 0.99772171295402323 0.00163541421362805]
+Expected: [0.000000 0.000000 0.000000 1.000000 0.000000], Predicted: [0.00162714730903810 0.00092953997732380 0.00000016357419907 0.99776601305101664 0.00167609926589473]
+Expected: [0.000000 0.000000 0.000000 0.000000 1.000000], Predicted: [0.00029472818267077 0.00000013710991549 0.00220328488684035 0.00179872207725094 0.99768526879970743]
+Expected: [0.000000 0.000000 0.000000 0.000000 1.000000], Predicted: [0.00029603269780999 0.00000013806398409 0.00215840026338338 0.00183004677500394 0.99763753139587086]
+Expected: [0.000000 0.000000 0.000000 0.000000 1.000000], Predicted: [0.00028168725253298 0.00000014122037799 0.00210828217383466 0.00183816515815316 0.99760628039571286]
+Expected: [0.000000 0.000000 0.000000 0.000000 1.000000], Predicted: [0.00029794341537787 0.00000013783038416 0.00217348404751874 0.00182290302916733 0.99765725740535349]
+Expected: [0.000000 0.000000 0.000000 0.000000 1.000000], Predicted: [0.00029308243403863 0.00000013826465799 0.00221011222430659 0.00178853701699943 0.99766190448368697]

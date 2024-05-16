@@ -23,7 +23,7 @@ activationsFileName activations.txt
 
 weightLowerBound -1.5
 weightUpperBound 1.5
-errorThreshold 2e-4
+errorThreshold 2e-6
 maxIterations 100000
 weightSaveEvery 10000
 keepAliveEvery 500
