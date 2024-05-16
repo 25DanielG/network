@@ -1,2 +1,6 @@
 main.go_[0-9]*
 .DS_Store
+**/weights.txt
+**/thetas.txt
+weights.txt
+optim-n-layer/weights.txt
