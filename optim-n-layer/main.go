@@ -566,13 +566,15 @@ func loadTestData()
          checkError(err)
 
          var activationsScanner *bufio.Scanner = bufio.NewScanner(dataFile)
-         activationsScanner.Scan()
-         var activationsLine string = activationsScanner.Text()
 
-         for m = 0; m < inputNodes; m++
+         for m = 0; m < inputNodes && activationsScanner.Scan(); m++
          {
-            truthTable[test][m], _ = strconv.ParseFloat(activationsLine, BITS_IN_FLOAT64)
+            var activationsLine string = activationsScanner.Text()
+            truthTable[test][m], err = strconv.ParseFloat(activationsLine, BITS_IN_FLOAT64)
+            checkError(err)
          } // for m = 0; m < inputNodes; m++
+
+         dataFile.Close()
 
          for i = 0; i < outputNodes; i++
          {

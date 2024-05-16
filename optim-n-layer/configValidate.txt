@@ -8,12 +8,12 @@ activations [10000,10,10,5]
 
 | TRAIN PARAMETERS |
 
-trainMode true
-learningRate 0.3
+trainMode false
+learningRate 0.5
 activationFunction sigmoid
 
 // 1 Random, 2 Zero, 3 Manual, 4 Load from file, 5 Xavier
-weightInit 5
+weightInit 4
 
 writeWeights true
 fileName weights.txt
@@ -31,6 +31,6 @@ estimateTrainTime true
 
 |  RUN PARAMETERS  |
 
-numTestCases 25
+numTestCases 5
 externalTestData true
-testDataFile dataImages.txt
+testDataFile dataValidate.txt
